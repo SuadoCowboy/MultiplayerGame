@@ -44,7 +44,6 @@ void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int&
 
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
 	enet_peer_send(peer, channel, enetPacket);
-    enet_packet_destroy(enetPacket);
 }
 
 void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const int& channel) {
@@ -52,5 +51,4 @@ void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const
 
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
 	enet_host_broadcast(host, channel, enetPacket);
-    enet_packet_destroy(enetPacket);
 }
