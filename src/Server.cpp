@@ -1,6 +1,4 @@
 #include <iostream>
-#include <unordered_map>
-#include <cstdint>
 
 #include <enet/enet.h>
 
@@ -78,6 +76,26 @@ int main() {
                            << pClient->player.rect;
                     broadcastPacket(host, packet, true, 0);
                     packet.deleteData();
+
+                    packet << (enet_uint8)CLIENTS_LIST
+                           << clients.size()-1;
+                    sendPacket(event.peer, packet, true, 0);
+                    packet.deleteData();
+
+                    for (auto& client : clients.get()) {
+                        if (client.id == pClient->id)
+                            continue;
+
+                        packet << (enet_uint8)CLIENTS_LIST
+                               << client.id
+                               << client.player.color.r
+                               << client.player.color.g
+                               << client.player.color.b
+                               << client.player.rect;
+                        
+                        sendPacket(event.peer, packet, true, 0);
+                        packet.deleteData();
+                    }
                     break;
 
                 case ENET_EVENT_TYPE_RECEIVE:
@@ -86,14 +104,22 @@ int main() {
 
                 case ENET_EVENT_TYPE_DISCONNECT:
                     pClient = clients.getByAddress(event.peer->address);
-                    if (!pClient)
+                    if (!pClient) {
+                        std::cout << "UNKNOWN CLIENT TRIED TO DISCONNECT\n";
                         break;
+                    }
 
                     enet_address_get_host_ip(&pClient->address, ip, sizeof(ip));
 
                     std::cout << "CLIENT DISCONNECTED => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << pClient->address.port << "\n";
+                    packet << (enet_uint8)CLIENT_DISCONNECT
+                           << pClient->id;
+
+                    broadcastPacket(host, packet, true, 0);
+                    packet.deleteData();
+
+                    clients.erase(pClient->id);
                     event.peer->data = NULL;
-                    running = false;
                     break;
 
                 case ENET_EVENT_TYPE_NONE:
