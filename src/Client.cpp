@@ -74,7 +74,8 @@ int main() {
         enet_peer_reset(peer);
         puts("Connection to server failed.");
         exit(EXIT_FAILURE);
-    }
+    } else if (event.type == ENET_EVENT_TYPE_RECEIVE)
+        enet_packet_destroy(event.packet);
 
     while (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
         if (event.packet->dataLength < sizeof(enet_uint8)) {
