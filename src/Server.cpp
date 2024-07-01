@@ -86,7 +86,6 @@ int main() {
 
                 case ENET_EVENT_TYPE_DISCONNECT:
                     pClient = clients.getByAddress(event.peer->address);
-                    
                     if (!pClient)
                         break;
 
