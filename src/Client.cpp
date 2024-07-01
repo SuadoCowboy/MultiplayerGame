@@ -10,8 +10,8 @@ namespace rl {
 
 #include "Player.h"
 #include "Packet.h"
-#include "Constants.h"
 #include "ClientsHandler.h"
+#include "Shared.h"
 
 #define PORT 5055
 
@@ -40,8 +40,10 @@ void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
     }
 
     // Drop connection, since disconnection didn't successed
-    if (!disconnected)
+    if (!disconnected) {
+        puts("Dropped connection because server did not respond on time.");
         enet_peer_reset(peer);
+    }
 }
 
 int main() {
@@ -75,43 +77,42 @@ int main() {
     }
 
     while (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
-        size_t dataSize = 0;
-        
-        PacketType packetType;
-        char* data;
-        {
-            enet_uint8 tempPacketType = NONE;
-            data = parsePacket(event.packet, tempPacketType, dataSize);
-            packetType = (PacketType)tempPacketType;
-        }
-        
-        if (packetType == NONE) {
+        if (event.packet->dataLength < sizeof(enet_uint8)) {
+            std::cout << "ERROR WHILE RECEIVING PACKET => DATA LENGTH: " << event.packet->dataLength << std::endl;
             enet_peer_reset(peer);
-            std::cerr << "ERROR WHILE PARSING PACKET => TYPE IS NONE" << std::endl;
+            enet_packet_destroy(event.packet);
             exit(EXIT_FAILURE);
         }
 
-        if (packetType == CLIENT_CONNECT && dataSize != 0) {
-            clientId = *(enet_uint8*)data;
-            size_t offset = sizeOfEnet_uint8;
+        PacketUnwrapper packetUnwrapper((const char*)event.packet->data);
+
+        PacketType packetType;
+        {
+            enet_uint8 tempPacketType;
+            packetUnwrapper >> tempPacketType;
+            packetType = (PacketType)tempPacketType;
+        }
+
+        if (packetType == NONE) {
+            std::cerr << "ERROR WHILE PARSING PACKET => TYPE IS NONE" << std::endl;
+            enet_peer_reset(peer);
+            enet_packet_destroy(event.packet);
+            exit(EXIT_FAILURE);
+        }
+
+        if (packetType == CLIENT_CONNECT) {
+            packetUnwrapper >> clientId;
 
             players[clientId] = {};
-
-            players[clientId].color.r = *(enet_uint8*)(data+offset); 
-            offset += sizeOfEnet_uint8;
-
-            players[clientId].color.g = *(enet_uint8*)(data+offset); 
-            offset += sizeOfEnet_uint8;
-
-            players[clientId].color.b = *(enet_uint8*)(data+offset); 
-            offset += sizeOfEnet_uint8;
-
+            packetUnwrapper >> players[clientId].color.r
+                            >> players[clientId].color.g
+                            >> players[clientId].color.b;
+            
             players[clientId].color.a = 255;
 
-            players[clientId].rect = *(rl::Rectangle*)(data+offset);
-            //offset += sizeOfFloat*4;
+            packetUnwrapper >> players[clientId].rect;
             
-            std::cout << "DATA SIZE: " << dataSize << "\nCONNECTED => ID: " << (enet_uint16)clientId << " | COLOR: "
+            std::cout << "DATA SIZE: " << event.packet->dataLength << "\nCONNECTED => ID: " << (enet_uint16)clientId << " | COLOR: "
                       << (enet_uint16)players[clientId].color.r << ", "
                       << (enet_uint16)players[clientId].color.g << ", "
                       << (enet_uint16)players[clientId].color.b << ", "
@@ -124,8 +125,9 @@ int main() {
                       << players[clientId].rect.height
                       << std::endl;
         } else {
+            std::cerr << "ERROR WHILE PARSING PACKET DATA => TYPE: " << packetType << " | SIZE: " << event.packet->dataLength << std::endl;
             enet_peer_reset(peer);
-            std::cerr << "ERROR WHILE PARSING PACKET DATA => TYPE: " << packetType << " | SIZE: " << dataSize << std::endl;
+            enet_packet_destroy(event.packet);
             exit(EXIT_FAILURE);
         }
 

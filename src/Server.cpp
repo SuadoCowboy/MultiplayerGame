@@ -11,7 +11,7 @@ namespace rl {
 #include "Player.h"
 #include "Packet.h"
 #include "ClientsHandler.h"
-#include "Constants.h"
+#include "Shared.h"
 
 #define MAX_CLIENTS 32
 #define PORT 5055
@@ -53,9 +53,8 @@ int main() {
         /* Wait up to 1000 milliseconds for an event. (WARNING: blocking) */
         while (enet_host_service(host, &event, 1000) > 0) {
             Client* pClient = nullptr;
+            Packet packet;
             char ip[16];
-            char* dataPool = nullptr;
-            size_t offset;
 
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT:
@@ -70,29 +69,15 @@ int main() {
                     }
 
                     std::cout << "NEW CLIENT => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << event.peer->address.port << "\n";
-                    
-                    dataPool = new char[sizeOfEnet_uint8*4 + sizeOfFloat*4];
 
-                    memcpy(dataPool, &pClient->id, sizeOfEnet_uint8);
-                    offset = sizeOfEnet_uint8;
-                    memcpy(dataPool+offset, &pClient->player.color.r, sizeOfEnet_uint8);
-                    offset += sizeOfEnet_uint8;
-                    memcpy(dataPool+offset, &pClient->player.color.g, sizeOfEnet_uint8);
-                    offset += sizeOfEnet_uint8;
-                    memcpy(dataPool+offset, &pClient->player.color.b, sizeOfEnet_uint8);
-                    offset += sizeOfEnet_uint8;
-                    memcpy(dataPool+offset, &pClient->player.rect.x, sizeOfFloat);
-                    offset += sizeOfFloat;
-                    memcpy(dataPool+offset, &pClient->player.rect.y, sizeOfFloat);
-                    offset += sizeOfFloat;
-                    memcpy(dataPool+offset, &pClient->player.rect.width, sizeOfFloat);
-                    offset += sizeOfFloat;
-                    memcpy(dataPool+offset, &pClient->player.rect.height, sizeOfFloat);
-                    offset += sizeOfFloat;
-
-                    broadcastPacket(host, CLIENT_CONNECT, dataPool, offset, true, 0);
-                    
-                    delete[] dataPool;
+                    packet << (enet_uint8)CLIENT_CONNECT
+                           << pClient->id
+                           << pClient->player.color.r
+                           << pClient->player.color.g
+                           << pClient->player.color.b
+                           << pClient->player.rect;
+                    broadcastPacket(host, packet, true, 0);
+                    packet.deleteData();
                     break;
 
                 case ENET_EVENT_TYPE_RECEIVE:
@@ -105,9 +90,9 @@ int main() {
                     if (!pClient)
                         break;
 
-                    enet_address_get_host_ip(&host->address, ip, sizeof(ip));
+                    enet_address_get_host_ip(&pClient->address, ip, sizeof(ip));
 
-                    std::cout << "CLIENT DISCONNECTED => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << "\n";
+                    std::cout << "CLIENT DISCONNECTED => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << pClient->address.port << "\n";
                     event.peer->data = NULL;
                     running = false;
                     break;
