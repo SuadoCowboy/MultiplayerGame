@@ -1,54 +1,56 @@
 #include "Packet.h"
 
-#include "Constants.h"
+Packet::Packet() {
+	deleteData();
+}
 
-inline char* preparePacketData(const enet_uint8& packetType, const char* data, const size_t& size) {
-	char* dataPool = new char[sizeOfEnet_uint8 + size];
-	memcpy(dataPool, &packetType, sizeOfEnet_uint8);
+Packet::~Packet() {
+	deleteData();
+}
+
+void Packet::pushData(const void* _data, const size_t& size) {
+	if (data) {
+		char* newData = new char[dataSize+size];
+		for (size_t i = 0; i < dataSize; ++i)
+			newData[i] = *(data+i);
+
+		delete[] data;
+		data = newData;
+	} else
+		data = new char[size];
+
+	memcpy(data+dataSize, _data, size);
+	dataSize += size;
+}
+
+void Packet::deleteData() {
+	if (!data) return;
 	
-    if (data && size)
-		memcpy(dataPool + sizeOfEnet_uint8, data, size);
-
-	return dataPool;
+	delete[] data;
+	data = nullptr;
+	dataSize = 0;
 }
 
-void sendPacket(ENetPeer* peer, const enet_uint8& packetType, const char* data, const size_t& size, const bool& reliable, const int& channel) {
-	char* dataPool = preparePacketData(packetType, data, size);
+const char* Packet::getData() {
+	return data;
+}
+
+const size_t& Packet::getDataSize() {
+	return dataSize;
+}
+
+void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int& channel) {
 	enet_uint32 flag = reliable? ENET_PACKET_FLAG_RELIABLE : ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT;
 
-	ENetPacket* packet = enet_packet_create(dataPool, size + sizeOfEnet_uint8, flag);
-	enet_peer_send(peer, channel, packet);
-
-    enet_packet_destroy(packet);
-	delete[] dataPool;
-
+	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
+	enet_peer_send(peer, channel, enetPacket);
+    enet_packet_destroy(enetPacket);
 }
 
-void broadcastPacket(ENetHost* host, const enet_uint8& packetType, const char* data, const size_t& size, const bool& reliable, const int& channel) {
-	char* dataPool = preparePacketData(packetType, data, size);
+void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const int& channel) {
 	enet_uint32 flag = reliable? ENET_PACKET_FLAG_RELIABLE : ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT;
 
-	ENetPacket* packet = enet_packet_create(dataPool, size + sizeOfEnet_uint8, flag);
-	enet_host_broadcast(host, channel, packet);
-
-    enet_packet_destroy(packet);
-	delete[] dataPool;
-
-}
-
-char* parsePacket(const ENetPacket* packet, enet_uint8& packetType, size_t& dataSize) {
-	void *data = packet->data;
-	if (packet->dataLength < sizeOfEnet_uint8) {
-		dataSize = 0;
-		packetType = NONE;
-		return nullptr;
-	}
-
-	memcpy(&packetType, data, sizeOfEnet_uint8);
-	if (packet->dataLength > sizeOfEnet_uint8) {
-		dataSize = packet->dataLength-sizeOfEnet_uint8;
-		return (char*)data + sizeOfEnet_uint8;
-	}
-
-	return nullptr;
+	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
+	enet_host_broadcast(host, channel, enetPacket);
+    enet_packet_destroy(enetPacket);
 }

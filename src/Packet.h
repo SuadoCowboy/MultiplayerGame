@@ -2,17 +2,51 @@
 
 #include <enet/enet.h>
 
-enum PacketType {
-    NONE = 0,
-    CLIENT_CONNECT,
-    CLIENT_DISCONNECT, // Also sends the id disconnected, so all the ids above that id should be itself-1
-    PLAYER_INPUT,
+/// @brief only used to send data. This class allocates memory dynamically in a char* buffer called data
+class Packet {
+public:
+    Packet();
+    ~Packet();
+    
+    /// @warning no size checking is being made. Use knowing the size of data!
+    void pushData(const void* data, const size_t& size);
+
+    const size_t& getDataSize();
+    const char* getData();
+
+    /// @warning this function SHOULD be called to deallocate memory
+    void deleteData();
+
+private:
+    char* data = nullptr;
+    size_t dataSize = 0;
 };
 
-void sendPacket(ENetPeer* peer, const enet_uint8& packetType, const char* data, const size_t& size, const bool& reliable, const int& channel);
-void broadcastPacket(ENetHost* host, const enet_uint8& packetType, const char* data, const size_t& size, const bool& reliable, const int& channel);
+template<typename T>
+Packet& operator<<(Packet& packet, const T& data) {
+    packet.pushData(&data, sizeof(T));
 
-/// @param packetType (out) PacketType as enet_uint8
-/// @param dataSize (out) data size
-/// @return data
-char* parsePacket(const ENetPacket* packet, enet_uint8& packetType, size_t& dataSize);
+    return packet;
+}
+
+struct PacketUnwrapper {
+    PacketUnwrapper(const char* data) : data(data) {};
+
+    template<typename T>
+    void get(T& out) {
+        out = *(T*)(data+offset);
+        offset += sizeof(T);
+    }
+
+    size_t offset = 0;
+    const char* data;
+};
+
+template<typename T>
+PacketUnwrapper& operator>>(PacketUnwrapper& packetUnwrapper, T& out) {
+    packetUnwrapper.get(out);
+    return packetUnwrapper;
+}
+
+void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int& channel);
+void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const int& channel);
