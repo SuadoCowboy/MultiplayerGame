@@ -1,6 +1,8 @@
 #pragma once
 
-#include <raylib.h>
+namespace rl {
+    #include <raylib.h>
+}
 
 struct Player {
     rl::Rectangle rect = {0,0,0,0};
