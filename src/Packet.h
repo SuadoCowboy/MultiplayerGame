@@ -30,7 +30,8 @@ Packet& operator<<(Packet& packet, const T& data) {
 }
 
 struct PacketUnwrapper {
-    PacketUnwrapper(const char* data) : data(data) {};
+    PacketUnwrapper() {}
+    PacketUnwrapper(const void* data) : data((const char*)data) {};
 
     template<typename T>
     void get(T& out) {
@@ -39,7 +40,7 @@ struct PacketUnwrapper {
     }
 
     size_t offset = 0;
-    const char* data;
+    const char* data = nullptr;
 };
 
 template<typename T>
