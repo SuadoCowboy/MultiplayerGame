@@ -15,15 +15,16 @@ struct Client {
 class ClientsHandler {
 public:
     ClientsHandler() {}
+    ~ClientsHandler();
 
     enet_uint8 add(const ENetAddress& address, const Player& player);
     void erase(const enet_uint8 id);
     enet_uint8 size() const;
     
-    std::vector<Client>& get();
+    std::vector<Client*>& get();
     Client* getById(const enet_uint8& id);
     Client* getByAddress(const ENetAddress& address);
 
 private:
-    std::vector<Client> clients;
+    std::vector<Client*> clients;
 };
