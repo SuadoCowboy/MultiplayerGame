@@ -1,7 +1,6 @@
 #pragma once
 
-#include <iostream>
-#include <cstring>
+#include <string>
 
 namespace rl {
     #include <raylib.h>
