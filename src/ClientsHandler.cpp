@@ -1,6 +1,10 @@
 #include "ClientsHandler.h"
 
 #include <iostream>
+#include <mutex>
+#include <chrono>
+
+#include "TickHandler.h"
 
 ClientsHandler::~ClientsHandler() {
     for (auto& client : clients) {
@@ -39,7 +43,7 @@ void ClientsHandler::erase(const enet_uint8 id) {
     }
 }
 
-enet_uint8 ClientsHandler::size() const {
+enet_uint16 ClientsHandler::size() const {
     return clients.size();
 }
 
@@ -61,4 +65,40 @@ Client* ClientsHandler::getByAddress(const ENetAddress& address) {
             return client;
     
     return nullptr;
+}
+
+void ClientsHandler::updateClients(const float tickInterval) {
+    TickHandler tickHandler(tickInterval);
+    auto dtStartTime = std::chrono::steady_clock::now();
+    
+    while (true) {
+        tickHandler.update(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - dtStartTime).count());
+        
+        dtStartTime = std::chrono::steady_clock::now();
+
+        if (!tickHandler.shouldTick())
+            continue;
+        
+        std::lock_guard<std::mutex> lock(clientsMutex);
+        for (auto& client : clients)
+            client->player.update();
+
+        if (!keepUpdatingClients)
+            break;
+    }
+}
+
+void ClientsHandler::lock() {
+    clientsMutex.lock();
+}
+
+void ClientsHandler::unlock() {
+    clientsMutex.unlock();
+}
+
+void ClientsHandler::stopUpdateClients() {
+    std::lock_guard<std::mutex> lock(clientsMutex);
+    keepUpdatingClients = false;
 }
