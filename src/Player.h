@@ -12,7 +12,7 @@ namespace rl {
 #include "Packet.h"
 #endif
 
-#define PLAYER_VELOCITY 50.0f
+#define PLAYER_VELOCITY 20.0f
 
 struct Player {
     rl::Rectangle rect = {0.0f,0.0f,0.0f,0.0f};
@@ -62,7 +62,6 @@ struct Player {
                 packet << (enet_uint8)PLAYER_INPUT
                     << dir;
                 
-                std::cout << (enet_uint16)dir.x << " " << (enet_uint16)dir.y << "\n";
                 sendPacket(serverPeer, packet, false, 1);
                 packet.deleteData();
             }
