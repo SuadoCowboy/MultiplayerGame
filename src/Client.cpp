@@ -200,7 +200,8 @@ int main() {
                 packetUnwrapper >> tickInterval
                                 >> clientsListSize;
                 
-                tickHandler.tickInterval = (float)tickInterval;
+                // server tickRate works with chrono. Client tickRate works with raylib delta time.
+                tickHandler.tickInterval = (float)tickInterval*0.001f;
                 if (clientsListSize == 0) {
                     enet_packet_destroy(event.packet);
                     break;
@@ -221,7 +222,7 @@ int main() {
     std::cout << "PLAYERS CONNECTED: " << clientsListSize+1 << "\n";
 
     while (!rl::WindowShouldClose()) {
-        float dt = rl::GetFrameTime()*1000;
+        float dt = rl::GetFrameTime();
         
         rl::BeginDrawing();
         rl::ClearBackground(rl::BLACK);
