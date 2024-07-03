@@ -100,7 +100,7 @@ void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
     }
 }
 
-enet_uint8 handleClientConnect(const ENetEvent& event, PacketUnwrapper& packetUnwrapper) {
+enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
     enet_uint8 id;
     packetUnwrapper >> id;
 
@@ -113,18 +113,11 @@ enet_uint8 handleClientConnect(const ENetEvent& event, PacketUnwrapper& packetUn
 
     packetUnwrapper >> player.rect;
     
-    std::cout << "DATA SIZE: " << event.packet->dataLength << "\nCONNECTED => ID: " << (enet_uint16)id << " | COLOR: "
-            << (enet_uint16)player.color.r << ", "
-            << (enet_uint16)player.color.g << ", "
-            << (enet_uint16)player.color.b << ", "
-            << (enet_uint16)player.color.a
+    std::cout << "CONNECTED => ID: " << (enet_uint16)id
             << " | POSITION: "
             << player.rect.x << ", "
             << player.rect.y
-            << " | SIZE: "
-            << player.rect.width << ", "
-            << player.rect.height
-            << std::endl;
+            << "\n";
     
     addClient(id, player);
     return id;
@@ -167,7 +160,7 @@ int main() {
 
     // Get initial data
     bool handlingClientsList = false;
-    enet_uint8 clientsListSize = 0;
+    enet_uint16 clientsListSize = 0;
     enet_uint8 clientsListIndex = 0;
     while (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
         if (event.packet->dataLength < sizeof(enet_uint8)) {
@@ -194,7 +187,7 @@ int main() {
         }
 
         if (packetType == CLIENT_CONNECT) {
-            enet_uint8 id = handleClientConnect(event, packetUnwrapper);
+            enet_uint8 id = handleClientConnect(packetUnwrapper);
             if (!pClient)
                 pClient = getClientById(id);
         }
@@ -203,17 +196,20 @@ int main() {
             if (!handlingClientsList) {
                 handlingClientsList = true;
 
-                packetUnwrapper >> tickHandler.tickInterval
+                enet_uint8 tickInterval;
+                packetUnwrapper >> tickInterval
                                 >> clientsListSize;
                 
-                tickHandler.tickInterval *= 2.0f;
-                if (clientsListSize == 0)
+                tickHandler.tickInterval = (float)tickInterval;
+                if (clientsListSize == 0) {
+                    enet_packet_destroy(event.packet);
                     break;
+                }
                 
                 continue;
             }
 
-            handleClientConnect(event, packetUnwrapper);
+            handleClientConnect(packetUnwrapper);
             ++clientsListIndex;
             if (clientsListIndex >= clientsListSize)
                 break;
@@ -225,7 +221,7 @@ int main() {
     std::cout << "PLAYERS CONNECTED: " << clientsListSize+1 << "\n";
 
     while (!rl::WindowShouldClose()) {
-        float dt = rl::GetFrameTime();
+        float dt = rl::GetFrameTime()*1000;
         
         rl::BeginDrawing();
         rl::ClearBackground(rl::BLACK);
@@ -262,7 +258,7 @@ int main() {
             }
 
             if (type == CLIENT_CONNECT)
-                handleClientConnect(event, packetUnwrapper);
+                handleClientConnect(packetUnwrapper);
             
             if (type == PLAYER_INPUT) {
                 enet_uint8 id;
@@ -285,8 +281,8 @@ int main() {
                                 >> pSomeClient->player.rect.y;
                 
                  std::cout << "INPUT => ID: " << (enet_uint16)id << " | DIR: ("
-                           << (enet_uint16)pSomeClient->player.dir.x << ", " << (enet_uint16)pSomeClient->player.dir.y << ") | POSITION: ("
-                           << pSomeClient->player.rect.x << ", " << pSomeClient->player.rect.y << ")\n";
+                           << (enet_uint16)pSomeClient->player.dir.x << ", "
+                           << (enet_uint16)pSomeClient->player.dir.y << ")\n";
             }
 
             enet_packet_destroy(event.packet);
