@@ -55,7 +55,7 @@ int main() {
     bool running = true;
     while (running) {
         ENetEvent event;
-        
+
         while (enet_host_service(host, &event, 0) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
@@ -65,8 +65,8 @@ int main() {
                     Client* pClient;
                     {
                         Player clientPlayer;
-                        clientPlayer.rect = {0,0, 20,20};
-                        clientPlayer.color = {100, 75, 31, 255};
+                        clientPlayer.rect = {100, 100, 20,20};
+                        clientPlayer.color = {100, 31, 75, 255};
                         
                         clients.lock();
                         pClient = clients.getById(clients.add(event.peer->address, clientPlayer));
@@ -145,7 +145,7 @@ int main() {
 
                         Packet packet;
                         packet << (enet_uint8)PLAYER_INPUT
-                               << (enet_uint16)pClient->id
+                               << pClient->id
                                << playerDir
                                << pClient->player.rect.x
                                << pClient->player.rect.y;
@@ -154,6 +154,9 @@ int main() {
                         packet.deleteData();
 
                         pClient->player.dir = playerDir;
+                        std::cout << "INPUT => DIR: (" << (enet_uint16)pClient->player.dir.x
+                                  << ", " << (enet_uint16)pClient->player.dir.y
+                                  << ") | POSITION: (" << (int)pClient->player.rect.x << ", " << (int)pClient->player.rect.y << ")\n";
                         clients.unlock();
                     }
 
