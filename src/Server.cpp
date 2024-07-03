@@ -55,8 +55,7 @@ int main() {
     bool running = true;
     while (running) {
         ENetEvent event;
-
-        /* Wait up to 1000 milliseconds for an event. (WARNING: blocking) */
+        
         while (enet_host_service(host, &event, 0) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
