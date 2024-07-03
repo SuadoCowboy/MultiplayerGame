@@ -1,7 +1,8 @@
 #include <iostream>
 
 #include <enet/enet.h>
-#include <chrono>
+#include <thread>
+#include <mutex>
 
 namespace rl {
     #include <raylib.h>
@@ -47,20 +48,13 @@ int main() {
         std::cout << "Address: " << ip << ":" << host->address.port << "\n";
     }
 
-    TickHandler tickHandler(0.015);
-
-    auto dtStartTime = std::chrono::steady_clock::now();
+    // 1 (second) / 66.66... (tickRate) = 15ms
+    const enet_uint8 tickInterval = 15;
+    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (float)tickInterval);
 
     bool running = true;
     while (running) {
         ENetEvent event;
-
-        tickHandler.update(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - dtStartTime).count()*0.001f);
-        dtStartTime = std::chrono::steady_clock::now();
-
-        if (!tickHandler.shouldTick()) continue;
 
         /* Wait up to 1000 milliseconds for an event. (WARNING: blocking) */
         while (enet_host_service(host, &event, 0) > 0) {
@@ -74,7 +68,8 @@ int main() {
                         Player clientPlayer;
                         clientPlayer.rect = {0,0, 20,20};
                         clientPlayer.color = {100, 75, 31, 255};
-
+                        
+                        clients.lock();
                         pClient = clients.getById(clients.add(event.peer->address, clientPlayer));
                     }
 
@@ -87,15 +82,22 @@ int main() {
                            << pClient->player.color.g
                            << pClient->player.color.b
                            << pClient->player.rect;
+                    clients.unlock();
+
                     broadcastPacket(host, packet, true, 0);
                     packet.deleteData();
                     
                     packet << (enet_uint8)SERVER_DATA
-                           << tickHandler.tickInterval
-                           << clients.size()-1;
+                           << tickInterval;
+                
+                    clients.lock();
+                    packet << clients.size()-1;
+                    clients.unlock();
+
                     sendPacket(event.peer, packet, true, 0);
                     packet.deleteData();
-
+                    
+                    clients.lock();
                     for (auto& client : clients.get()) {
                         if (client->id == pClient->id)
                             continue;
@@ -110,6 +112,8 @@ int main() {
                         sendPacket(event.peer, packet, true, 0);
                         packet.deleteData();
                     }
+                    clients.unlock();
+
                     break;
                 }
 
@@ -132,14 +136,16 @@ int main() {
                             break;
                         }
                         
+                        clients.lock();
                         Client* pClient = clients.getByAddress(event.peer->address);
+
                         if (!pClient) {
                             enet_packet_destroy(event.packet);
                             break;
                         }
 
                         Packet packet;
-                        packet << PLAYER_INPUT
+                        packet << (enet_uint8)PLAYER_INPUT
                                << (enet_uint16)pClient->id
                                << playerDir
                                << pClient->player.rect.x
@@ -149,6 +155,7 @@ int main() {
                         packet.deleteData();
 
                         pClient->player.dir = playerDir;
+                        clients.unlock();
                     }
 
                     enet_packet_destroy(event.packet);
@@ -156,7 +163,9 @@ int main() {
                 }
 
                 case ENET_EVENT_TYPE_DISCONNECT: {
+                    clients.lock();
                     Client* pClient = clients.getByAddress(event.peer->address);
+                    
                     if (!pClient) {
                         std::cout << "UNKNOWN CLIENT TRIED TO DISCONNECT\n";
                         break;
@@ -175,6 +184,8 @@ int main() {
                     packet.deleteData();
 
                     clients.erase(pClient->id);
+                    clients.unlock();
+
                     event.peer->data = NULL;
                     break;
                 }
@@ -183,12 +194,9 @@ int main() {
                     break;
             }
         }
-    
-        // TODO: update system with tick system using sleep function
-        for (auto& client : clients.get())
-            client->player.update();
     }
 
+    clients.stopUpdateClients();
     enet_host_destroy(host);
     enet_deinitialize();
 }
