@@ -1,5 +1,9 @@
 #include "Packet.h"
 
+#include <mutex>
+
+std::mutex packetSendMutex;
+
 Packet::Packet() {
 	deleteData();
 }
@@ -40,6 +44,8 @@ const size_t& Packet::getDataSize() {
 }
 
 void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int& channel) {
+	std::lock_guard<std::mutex> lock(packetSendMutex);
+	
 	enet_uint32 flag = reliable? ENET_PACKET_FLAG_RELIABLE : ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT;
 
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
@@ -47,6 +53,8 @@ void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int&
 }
 
 void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const int& channel) {
+	std::lock_guard<std::mutex> lock(packetSendMutex);
+	
 	enet_uint32 flag = reliable? ENET_PACKET_FLAG_RELIABLE : ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT;
 
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
