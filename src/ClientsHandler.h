@@ -29,8 +29,7 @@ public:
 
     /// @brief should be threaded
     /// @param tickInterval 1 second dividided by tickRate. Example: 1/66.666... = 0.015ms interval 
-    void updateClients(const float tickInterval);
-
+    void updateClients(const double tickInterval, ENetHost* host);
     void stopUpdateClients();
 
     /// @brief locks the clientsMutex
