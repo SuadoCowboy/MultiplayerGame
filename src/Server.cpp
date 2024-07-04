@@ -48,7 +48,9 @@ int main() {
         std::cout << "Address: " << ip << ":" << host.host->address.port << "\n";
     }
 
-    // TODO: BIG ISSUE: system is using too much cpu when sending those player packets
+    // TODO: BIG ISSUE: Even if there's no clients connected my cpu is 20% usage and when a client connects
+    // the system goes to 15%-17% usage and it seems that goes +17% per client connected so I get ~25% cpu
+    // usage by the system and + 20% from the server + the cpu usage each client uses
 
     // 1 (second) / 66.66... (tickRate) = 15ms
     const enet_uint8 tickInterval = 15;
