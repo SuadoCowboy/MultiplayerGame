@@ -1,7 +1,5 @@
 #include "Network.h"
 
-#include <mutex>
-
 std::mutex networkMutex;
 
 Packet::Packet() {
