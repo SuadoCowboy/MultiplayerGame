@@ -20,7 +20,7 @@ namespace rl {
 #include "Player.h"
 #include "Packet.h"
 #include "Shared.h"
-#include "TickHandler.h"
+#include "TimeSystem.h"
 
 #define PORT 5055
 
@@ -264,6 +264,7 @@ int main() {
             if (type == PLAYER_INPUT) {
                 enet_uint8 id;
                 packetUnwrapper >> id;
+                
                 Client* pSomeClient = getClientById(id);
                 if (!pSomeClient) {
                     std::cout << "ERROR => received input from a client that doesn't seem to exist\n";
@@ -280,10 +281,6 @@ int main() {
 
                 packetUnwrapper >> pSomeClient->player.rect.x
                                 >> pSomeClient->player.rect.y;
-                
-                 std::cout << "INPUT => ID: " << (enet_uint16)id << " | DIR: ("
-                           << (enet_uint16)pSomeClient->player.dir.x << ", "
-                           << (enet_uint16)pSomeClient->player.dir.y << ")\n";
             }
 
             enet_packet_destroy(event.packet);
