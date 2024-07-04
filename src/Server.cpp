@@ -135,10 +135,11 @@ int main() {
                     }
 
                     if (packetType == PLAYER_INPUT) {
-                        Vector2uc playerDir;
+                        enet_uint8 playerDir;
                         packetUnwrapper >> playerDir;
 
-                        if (playerDir.x > 2 || playerDir.y > 2) {
+                        // 15 = 1 | 2 | 4 | 8
+                        if (playerDir > 15) {
                             enet_packet_destroy(event.packet);
                             break;
                         }

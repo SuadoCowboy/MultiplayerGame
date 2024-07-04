@@ -273,7 +273,7 @@ int main() {
                 }
 
                 {
-                    Vector2uc dir;
+                    enet_uint8 dir;
                     packetUnwrapper >> dir;
                     if (id != pClient->id)
                         pClient->player.dir = dir;

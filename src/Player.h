@@ -17,7 +17,13 @@ struct Player {
     rl::Rectangle rect = {0.0f,0.0f,0.0f,0.0f};
     rl::Color color = {0,0,0,0};
 
-    Vector2uc dir = {1,1};
+    /*
+    1 = up
+    2 = down
+    4 = left
+    8 = right
+    */
+    enet_uint8 dir = 0;
 
 #ifdef CLIENT
     std::string idText;
@@ -41,25 +47,24 @@ struct Player {
         ) {
 #ifdef CLIENT
         if (serverPeer != nullptr) {
-            Vector2uc newDir = {1,1};
+            enet_uint8 newDir = 0;
 
             if (rl::IsKeyDown(rl::KEY_W))
-                newDir.y--;
+                newDir |= 1;
             if (rl::IsKeyDown(rl::KEY_S))
-                newDir.y++;
+                newDir |= 2;
             
             if (rl::IsKeyDown(rl::KEY_A))
-                newDir.x--;
+                newDir |= 4;
             if (rl::IsKeyDown(rl::KEY_D))
-                newDir.x++;
+               newDir |= 8;
             
-            if (newDir.x != dir.x || newDir.y != dir.y) {
-                dir.x = newDir.x;
-                dir.y = newDir.y;
+            if (newDir != dir) {
+                dir = newDir;
 
                 Packet packet;
                 packet << (enet_uint8)PLAYER_INPUT
-                    << dir;
+                       << dir;
                 
                 sendPacket(serverPeer, packet, false, 1);
                 packet.deleteData();
@@ -68,7 +73,7 @@ struct Player {
         
         idTextPosition = {rect.x+rect.width*0.5f-idTextWidthHalf, rect.y-idTextFontSize-2};
 #endif
-        rect.x += PLAYER_VELOCITY * ((float)dir.x - 1.0f);
-        rect.y += PLAYER_VELOCITY * ((float)dir.y - 1.0f);
+        rect.x += PLAYER_VELOCITY * ((dir & 8) - (dir & 4));
+        rect.y += PLAYER_VELOCITY * ((dir & 2) - (dir & 1));
     }
 };
