@@ -11,7 +11,7 @@ namespace rl {
 #include "Network.h"
 #endif
 
-#define PLAYER_VELOCITY 20.0f
+#define PLAYER_VELOCITY 8.0f
 
 struct Player {
     rl::Rectangle rect = {0.0f,0.0f,0.0f,0.0f};
@@ -73,7 +73,7 @@ struct Player {
         
         idTextPosition = {rect.x+rect.width*0.5f-idTextWidthHalf, rect.y-idTextFontSize-2};
 #endif
-        rect.x += PLAYER_VELOCITY * ((dir & 8) - (dir & 4));
-        rect.y += PLAYER_VELOCITY * ((dir & 2) - (dir & 1));
+        rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25);
+        rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1));
     }
 };
