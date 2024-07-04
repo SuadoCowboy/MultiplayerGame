@@ -48,9 +48,7 @@ int main() {
         std::cout << "Address: " << ip << ":" << host.host->address.port << "\n";
     }
 
-    // TODO: BIG ISSUE: high CPU usage (51%), probably because of the preciseSleep
-    // function in the TimeSystem.cpp. Also, because of the fucking SEND PLAYER INPUT
-    // EVERY TICK MIGHT BE MAKING IT WORSE BUT JUST A THOUGHT YOU KNOW...
+    // TODO: BIG ISSUE: system is using too much cpu when sending those player packets
 
     // 1 (second) / 66.66... (tickRate) = 15ms
     const enet_uint8 tickInterval = 15;
