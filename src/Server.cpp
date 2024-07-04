@@ -9,7 +9,7 @@ namespace rl {
 }
 
 #include "Player.h"
-#include "Packet.h"
+#include "Network.h"
 #include "ClientsHandler.h"
 #include "TimeSystem.h"
 #include "Shared.h"
@@ -55,7 +55,6 @@ int main() {
     bool running = true;
     while (running) {
         ENetEvent event;
-        
         
         while (enet_host_service(host, &event, 0) > 0) {
             switch (event.type) {
