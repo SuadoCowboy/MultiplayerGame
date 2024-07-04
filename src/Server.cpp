@@ -11,7 +11,7 @@ namespace rl {
 #include "Player.h"
 #include "Packet.h"
 #include "ClientsHandler.h"
-#include "TickHandler.h"
+#include "TimeSystem.h"
 #include "Shared.h"
 
 #define MAX_CLIENTS 32
@@ -50,12 +50,13 @@ int main() {
 
     // 1 (second) / 66.66... (tickRate) = 15ms
     const enet_uint8 tickInterval = 15;
-    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (float)tickInterval);
+    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, std::ref(host));
 
     bool running = true;
     while (running) {
         ENetEvent event;
-
+        
+        
         while (enet_host_service(host, &event, 0) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
@@ -137,26 +138,12 @@ int main() {
                         
                         clients.lock();
                         Client* pClient = clients.getByAddress(event.peer->address);
-
                         if (!pClient) {
                             enet_packet_destroy(event.packet);
                             break;
                         }
 
-                        Packet packet;
-                        packet << (enet_uint8)PLAYER_INPUT
-                               << pClient->id
-                               << playerDir
-                               << pClient->player.rect.x
-                               << pClient->player.rect.y;
-                        
-                        broadcastPacket(host, packet, false, 1);
-                        packet.deleteData();
-
                         pClient->player.dir = playerDir;
-                        std::cout << "INPUT => DIR: (" << (enet_uint16)pClient->player.dir.x
-                                  << ", " << (enet_uint16)pClient->player.dir.y
-                                  << ") | POSITION: (" << (int)pClient->player.rect.x << ", " << (int)pClient->player.rect.y << ")\n";
                         clients.unlock();
                     }
 
