@@ -1,6 +1,9 @@
 #include "Network.h"
 
-std::mutex networkMutex;
+int ThreadedHost::service(ENetEvent* event, enet_uint32 blockMilliseconds) {
+	std::lock_guard<std::mutex> lock(mutex);
+	return enet_host_service(host, event, blockMilliseconds);
+}
 
 Packet::Packet() {
 	deleteData();
@@ -42,8 +45,6 @@ const size_t& Packet::getDataSize() {
 }
 
 void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int& channel) {
-	std::lock_guard<std::mutex> lock(networkMutex);
-	
 	enet_uint32 flag = reliable? ENET_PACKET_FLAG_RELIABLE : ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT;
 
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
@@ -51,8 +52,6 @@ void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int&
 }
 
 void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const int& channel) {
-	std::lock_guard<std::mutex> lock(networkMutex);
-	
 	enet_uint32 flag = reliable? ENET_PACKET_FLAG_RELIABLE : ENET_PACKET_FLAG_UNRELIABLE_FRAGMENT;
 
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
@@ -60,8 +59,6 @@ void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const
 }
 
 int enetHostService(ENetHost* host, ENetEvent* event, enet_uint32 blockMilliseconds) {
-	std::lock_guard<std::mutex> lock(networkMutex);
-
 	int out = enet_host_service(host, event, blockMilliseconds);
 	return out;
 }

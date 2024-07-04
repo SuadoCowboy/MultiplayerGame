@@ -3,7 +3,12 @@
 #include <enet/enet.h>
 #include <mutex>
 
-extern std::mutex networkMutex;
+struct ThreadedHost {
+    int service(ENetEvent* event, enet_uint32 blockMilliseconds);
+
+    ENetHost* host = nullptr;
+    std::mutex mutex;
+};
 
 /// @brief only used to send data. This class allocates memory dynamically in a char* buffer called data
 class Packet {
