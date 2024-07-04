@@ -48,6 +48,9 @@ int main() {
         std::cout << "Address: " << ip << ":" << host.host->address.port << "\n";
     }
 
+    // TODO: BIG ISSUE: high CPU usage (51%), probably because of the preciseSleep
+    // function in the TimeSystem.cpp
+
     // 1 (second) / 66.66... (tickRate) = 15ms
     const enet_uint8 tickInterval = 15;
     std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, std::ref(host));
@@ -147,7 +150,6 @@ int main() {
                         }
 
                         pClient->player.dir = playerDir;
-                        std::cout << (int)pClient->player.dir.x-1 << "\n";
                         clients.unlock();
                     }
 
