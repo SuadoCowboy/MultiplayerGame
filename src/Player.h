@@ -38,6 +38,8 @@ struct Player {
         idTextWidthHalf = rl::MeasureText(idText.c_str(), idTextFontSize)*0.5f;
         update(nullptr);
     }
+#else
+    enet_uint8 oldDir = 0;
 #endif
 
     void update(

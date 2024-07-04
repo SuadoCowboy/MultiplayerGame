@@ -79,8 +79,10 @@ void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host
         for (auto& client : clients) {
             client->player.update();
             
-            if ((currentTick % 5) == 0) continue;
+            if ((currentTick % 5) == 0 && client->player.oldDir != client->player.dir) continue;
             
+            client->player.oldDir = client->player.dir;
+
             Packet packet;
             packet << (enet_uint8)PLAYER_INPUT
                    << client->id
