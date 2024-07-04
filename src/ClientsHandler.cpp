@@ -67,18 +67,18 @@ Client* ClientsHandler::getByAddress(const ENetAddress& address) {
 }
 
 void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host) {
-    
-    enet_uint8 until10Ticks = 0;
-    while (true) {
-        preciseSleep(tickInterval);
+    enet_uint8 until30Ticks = 0;
 
-        ++until10Ticks;
+    while (true) {
+        timerSleep(tickInterval);
+
+        ++until30Ticks;
 
         std::lock_guard<std::mutex> lock(clientsMutex);
         for (auto& client : clients) {
             client->player.update();
             
-            if (until10Ticks < 10) continue;
+            if (until30Ticks < 30) continue;
             
             Packet packet;
             packet << (enet_uint8)PLAYER_INPUT
@@ -94,7 +94,7 @@ void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host
             packet.deleteData();
         }
 
-        if (until10Ticks >= 10) until10Ticks = 0;
+        if (until30Ticks >= 30) until30Ticks = 0;
 
         if (!keepUpdatingClients)
             break;
