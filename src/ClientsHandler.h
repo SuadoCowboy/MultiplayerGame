@@ -6,6 +6,7 @@
 #include <enet/enet.h>
 
 #include "Player.h"
+#include "Network.h"
 
 struct Client {
     ENetAddress address;
@@ -29,7 +30,7 @@ public:
 
     /// @brief should be threaded
     /// @param tickInterval 1 second dividided by tickRate. Example: 1/66.666... = 0.015ms interval 
-    void updateClients(const double tickInterval, ENetHost* host);
+    void updateClients(const double tickInterval, ThreadedHost& host);
     void stopUpdateClients();
 
     /// @brief locks the clientsMutex

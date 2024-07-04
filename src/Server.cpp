@@ -28,15 +28,15 @@ int main() {
 
     std::cout << "Initialized ENet successfully.\n";
 
-    ENetHost* host;
+    ThreadedHost host;
     {
         ENetAddress address;
         address.host = ENET_HOST_ANY;
         address.port = PORT;
 
-        host = enet_host_create(&address, MAX_CLIENTS, 2, 0, 0);
+        host.host = enet_host_create(&address, MAX_CLIENTS, 2, 0, 0);
 
-        if (!host) {
+        if (!host.host) {
             std::cerr << "An error occurred while trying to create an ENet client host." << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -44,23 +44,25 @@ int main() {
 
     {
         char ip[16];
-        enet_address_get_host_ip(&host->address, ip, sizeof(ip));
-        std::cout << "Address: " << ip << ":" << host->address.port << "\n";
+        enet_address_get_host_ip(&host.host->address, ip, sizeof(ip));
+        std::cout << "Address: " << ip << ":" << host.host->address.port << "\n";
     }
 
     // 1 (second) / 66.66... (tickRate) = 15ms
     const enet_uint8 tickInterval = 15;
-    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, host);
+    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, std::ref(host));
 
     bool running = true;
     while (running) {
         ENetEvent event;
         
-        while (enet_host_service(host, &event, 0) > 0) {
+        while (host.service(&event, 0) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
                     char ip[16];
-                    enet_address_get_host_ip(&host->address, ip, sizeof(ip));
+                    host.mutex.lock();
+                    enet_address_get_host_ip(&host.host->address, ip, sizeof(ip));
+                    host.mutex.unlock();
 
                     Client* pClient;
                     {
@@ -83,7 +85,9 @@ int main() {
                            << pClient->player.rect;
                     clients.unlock();
 
-                    broadcastPacket(host, packet, true, 0);
+                    host.mutex.lock();
+                    broadcastPacket(host.host, packet, true, 0);
+                    host.mutex.unlock();
                     packet.deleteData();
                     
                     packet << (enet_uint8)SERVER_DATA
@@ -143,6 +147,7 @@ int main() {
                         }
 
                         pClient->player.dir = playerDir;
+                        std::cout << (int)pClient->player.dir.x-1 << "\n";
                         clients.unlock();
                     }
 
@@ -167,8 +172,11 @@ int main() {
                     Packet packet;
                     packet << (enet_uint8)CLIENT_DISCONNECT
                            << pClient->id;
+                    
+                    host.mutex.lock();
+                    broadcastPacket(host.host, packet, true, 0);
+                    host.mutex.unlock();
 
-                    broadcastPacket(host, packet, true, 0);
                     packet.deleteData();
 
                     clients.erase(pClient->id);
@@ -185,6 +193,8 @@ int main() {
     }
 
     clients.stopUpdateClients();
-    enet_host_destroy(host);
+    clientsUpdateThread.join();
+
+    enet_host_destroy(host.host);
     enet_deinitialize();
 }

@@ -66,7 +66,7 @@ Client* ClientsHandler::getByAddress(const ENetAddress& address) {
     return nullptr;
 }
 
-void ClientsHandler::updateClients(const double tickInterval, ENetHost* host) {
+void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host) {
     while (true) {
         preciseSleep(tickInterval);
 
@@ -81,7 +81,10 @@ void ClientsHandler::updateClients(const double tickInterval, ENetHost* host) {
                    << client->player.rect.x
                    << client->player.rect.y;
             
-            broadcastPacket(host, packet, false, 1);
+            host.mutex.lock();
+            broadcastPacket(host.host, packet, false, 1);
+            host.mutex.unlock();
+
             packet.deleteData();
         }
 
