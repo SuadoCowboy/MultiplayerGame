@@ -124,7 +124,7 @@ enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
 }
 
 int main() {
-    rl::InitWindow(1270, 720, "Multiplayer Game");
+    rl::InitWindow(200, 200, "Multiplayer Game");
 
     if (enet_initialize() != 0) {
         std::cerr << "An error occurred while initializing ENet." << std::endl;
@@ -276,7 +276,7 @@ int main() {
                     enet_uint8 dir;
                     packetUnwrapper >> dir;
                     if (id != pClient->id)
-                        pClient->player.dir = dir;
+                        pSomeClient->player.dir = dir;
                 }
 
                 packetUnwrapper >> pSomeClient->player.rect.x
