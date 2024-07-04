@@ -12,3 +12,4 @@ struct TickHandler {
 };
 
 void preciseSleep(double seconds);
+void timerSleep(double seconds);
