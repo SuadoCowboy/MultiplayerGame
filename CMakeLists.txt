@@ -8,13 +8,13 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # Client
-add_executable(MultiplayerGame src/Client.cpp src/Packet.cpp src/TickHandler.cpp)
+add_executable(MultiplayerGame src/Client.cpp src/Packet.cpp src/TimeSystem.cpp)
 
 target_include_directories(MultiplayerGame PRIVATE include src)
 target_link_libraries(MultiplayerGame PRIVATE -L${PROJECT_SOURCE_DIR}/libs -lenet-d -lws2_32 -lwinmm -lraylib)
 
 # Server
-add_executable(MultiplayerGameServer src/Server.cpp src/Packet.cpp src/ClientsHandler.cpp src/TickHandler.cpp)
+add_executable(MultiplayerGameServer src/Server.cpp src/Packet.cpp src/ClientsHandler.cpp src/TimeSystem.cpp)
 
 target_include_directories(MultiplayerGameServer PRIVATE include src)
 target_link_libraries(MultiplayerGameServer PRIVATE -L${PROJECT_SOURCE_DIR}/libs -lenet-d -lws2_32 -lwinmm -lraylib)
