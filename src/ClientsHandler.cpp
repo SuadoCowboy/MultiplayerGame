@@ -1,10 +1,9 @@
 #include "ClientsHandler.h"
 
-#include <iostream>
 #include <mutex>
-#include <chrono>
 
-#include "TickHandler.h"
+#include "Packet.h"
+#include "TimeSystem.h"
 
 ClientsHandler::~ClientsHandler() {
     for (auto& client : clients) {
@@ -67,23 +66,24 @@ Client* ClientsHandler::getByAddress(const ENetAddress& address) {
     return nullptr;
 }
 
-void ClientsHandler::updateClients(const float tickInterval) {
-    TickHandler tickHandler(tickInterval);
-    auto dtStartTime = std::chrono::steady_clock::now();
-    
+void ClientsHandler::updateClients(const double tickInterval, ENetHost* host) {
     while (true) {
-        tickHandler.update(
-            std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::steady_clock::now() - dtStartTime).count());
-        
-        dtStartTime = std::chrono::steady_clock::now();
+        preciseSleep(tickInterval);
 
-        if (!tickHandler.shouldTick())
-            continue;
-        
         std::lock_guard<std::mutex> lock(clientsMutex);
-        for (auto& client : clients)
+        for (auto& client : clients) {
             client->player.update();
+
+            Packet packet;
+            packet << (enet_uint8)PLAYER_INPUT
+                   << client->id
+                   << client->player.dir
+                   << client->player.rect.x
+                   << client->player.rect.y;
+            
+            broadcastPacket(host, packet, false, 1);
+            packet.deleteData();
+        }
 
         if (!keepUpdatingClients)
             break;
