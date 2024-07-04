@@ -50,7 +50,7 @@ int main() {
 
     // 1 (second) / 66.66... (tickRate) = 15ms
     const enet_uint8 tickInterval = 15;
-    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, std::ref(host));
+    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, host);
 
     bool running = true;
     while (running) {
