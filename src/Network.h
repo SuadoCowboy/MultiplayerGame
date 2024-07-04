@@ -1,7 +1,7 @@
 #pragma once
 
 #include <enet/enet.h>
-#include <nutex>
+#include <mutex>
 
 extern std::mutex networkMutex;
 
