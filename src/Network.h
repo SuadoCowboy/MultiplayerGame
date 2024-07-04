@@ -2,6 +2,8 @@
 
 #include <enet/enet.h>
 
+extern std::mutex networkMutex;
+
 /// @brief only used to send data. This class allocates memory dynamically in a char* buffer called data
 class Packet {
 public:
@@ -51,3 +53,6 @@ PacketUnwrapper& operator>>(PacketUnwrapper& packetUnwrapper, T& out) {
 
 void sendPacket(ENetPeer* peer, Packet& packet, const bool& reliable, const int& channel);
 void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const int& channel);
+
+/// @brief enet_host_service but using a mutex for thread safety
+int enetHostService(ENetHost* host, ENetEvent* event, enet_uint32 blockMilliseconds);

@@ -18,7 +18,7 @@ namespace rl {
 
 #define CLIENT
 #include "Player.h"
-#include "Packet.h"
+#include "Network.h"
 #include "Shared.h"
 #include "TimeSystem.h"
 

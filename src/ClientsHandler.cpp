@@ -2,7 +2,7 @@
 
 #include <mutex>
 
-#include "Packet.h"
+#include "Network.h"
 #include "TimeSystem.h"
 
 ClientsHandler::~ClientsHandler() {

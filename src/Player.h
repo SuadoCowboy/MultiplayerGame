@@ -8,7 +8,7 @@ namespace rl {
 
 #include "Shared.h"
 #ifdef CLIENT
-#include "Packet.h"
+#include "Network.h"
 #endif
 
 #define PLAYER_VELOCITY 20.0f
