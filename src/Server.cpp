@@ -60,7 +60,7 @@ int main() {
     while (running) {
         ENetEvent event;
         
-        while (host.service(&event, 0) > 0) {
+        while (host.service(&event, 5) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
                     char ip[16];
@@ -78,7 +78,7 @@ int main() {
                         pClient = clients.getById(clients.add(event.peer->address, clientPlayer));
                     }
 
-                    std::cout << "NEW CLIENT => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << event.peer->address.port << "\n";
+                    std::cout << "CLIENT CONNECTED => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << event.peer->address.port << "\n";
 
                     Packet packet;
                     packet << (enet_uint8)CLIENT_CONNECT
@@ -126,19 +126,15 @@ int main() {
 
                 case ENET_EVENT_TYPE_RECEIVE: {
                     PacketUnwrapper packetUnwrapper{event.packet->data};
-
-                    PacketType packetType = NONE;
-                    {
-                        enet_uint8 packetTypeTemp;
-                        packetUnwrapper >> packetTypeTemp;
-                        packetType = (PacketType)packetTypeTemp;
-                    }
+                    
+                    enet_uint8 packetType;
+                    packetUnwrapper >> packetType;
 
                     if (packetType == PLAYER_INPUT) {
                         enet_uint8 playerDir;
                         packetUnwrapper >> playerDir;
 
-                        // 15 = 1 | 2 | 4 | 8
+                        // 15 = 1 | 2 | 4 | 8 = all keys pressed. Above that it's unknown data.
                         if (playerDir > 15) {
                             enet_packet_destroy(event.packet);
                             break;
