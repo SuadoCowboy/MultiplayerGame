@@ -75,11 +75,12 @@ void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host
 
         ++currentTick;
 
-        std::lock_guard<std::mutex> lock(clientsMutex);
+        clientsMutex.lock();
         for (auto& client : clients) {
             client->player.update();
-            
-            if ((currentTick % 5) == 0 && client->player.oldDir != client->player.dir) continue;
+
+            if ((currentTick % 5) != 0 || client->player.oldDir == client->player.dir)
+                continue;
             
             client->player.oldDir = client->player.dir;
 
@@ -96,12 +97,17 @@ void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host
 
             packet.deleteData();
         }
+        clientsMutex.unlock();
 
         if (currentTick >= maxTick)
             currentTick = 0;
 
-        if (!keepUpdatingClients)
+        clientsMutex.lock();
+        if (!keepUpdatingClients) {
+            clientsMutex.unlock();
             break;
+        }
+        clientsMutex.unlock();
     }
 }
 
