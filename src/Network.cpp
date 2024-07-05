@@ -57,8 +57,3 @@ void broadcastPacket(ENetHost* host, Packet& packet, const bool& reliable, const
 	ENetPacket* enetPacket = enet_packet_create(packet.getData(), packet.getDataSize(), flag);
 	enet_host_broadcast(host, channel, enetPacket);
 }
-
-int enetHostService(ENetHost* host, ENetEvent* event, enet_uint32 blockMilliseconds) {
-	int out = enet_host_service(host, event, blockMilliseconds);
-	return out;
-}
