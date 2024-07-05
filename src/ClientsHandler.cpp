@@ -1,10 +1,5 @@
 #include "ClientsHandler.h"
 
-#include <mutex>
-
-#include "Network.h"
-#include "TimeSystem.h"
-
 ClientsHandler::~ClientsHandler() {
     for (auto& client : clients) {
         delete client;
@@ -64,62 +59,4 @@ Client* ClientsHandler::getByAddress(const ENetAddress& address) {
             return client;
     
     return nullptr;
-}
-
-void ClientsHandler::updateClients(const double tickInterval, ThreadedHost& host) {
-    enet_uint8 currentTick = 0;
-    enet_uint8 maxTick = 1/tickInterval;
-
-    while (true) {
-        timerSleep(tickInterval);
-
-        ++currentTick;
-
-        clientsMutex.lock();
-        for (auto& client : clients) {
-            client->player.update();
-
-            if ((currentTick % 5) != 0 || client->player.oldDir == client->player.dir)
-                continue;
-            
-            client->player.oldDir = client->player.dir;
-
-            Packet packet;
-            packet << (enet_uint8)PLAYER_INPUT
-                   << client->id
-                   << client->player.dir
-                   << client->player.rect.x
-                   << client->player.rect.y;
-            
-            host.mutex.lock();
-            broadcastPacket(host.host, packet, false, 1);
-            host.mutex.unlock();
-
-            packet.deleteData();
-        }
-        clientsMutex.unlock();
-
-        if (currentTick >= maxTick)
-            currentTick = 0;
-
-        clientsMutex.lock();
-        if (!keepUpdatingClients) {
-            clientsMutex.unlock();
-            break;
-        }
-        clientsMutex.unlock();
-    }
-}
-
-void ClientsHandler::lock() {
-    clientsMutex.lock();
-}
-
-void ClientsHandler::unlock() {
-    clientsMutex.unlock();
-}
-
-void ClientsHandler::stopUpdateClients() {
-    std::lock_guard<std::mutex> lock(clientsMutex);
-    keepUpdatingClients = false;
 }

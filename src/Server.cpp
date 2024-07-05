@@ -1,8 +1,6 @@
 #include <iostream>
 
 #include <enet/enet.h>
-#include <thread>
-#include <mutex>
 
 namespace rl {
     #include <raylib.h>
@@ -19,6 +17,39 @@ namespace rl {
 
 ClientsHandler clients;
 
+double tickInterval = 0.0;
+enet_uint8 currentTick = 0;
+enet_uint8 maxTick = 0; // = 1/tickInterval
+
+ENetHost* host = nullptr;
+
+void update() {
+    timerSleep(tickInterval);
+
+    for (auto& client : clients.get()) {
+        client->player.update();
+
+        if ((currentTick % 5) != 0 || client->player.oldDir == client->player.dir)
+            continue;
+        
+        client->player.oldDir = client->player.dir;
+
+        Packet packet;
+        packet << (enet_uint8)PLAYER_INPUT
+                << client->id
+                << client->player.dir
+                << client->player.rect.x
+                << client->player.rect.y;
+        
+        broadcastPacket(host, packet, false, 1);
+        packet.deleteData();
+    }
+
+    ++currentTick;
+    if (currentTick >= maxTick)
+        currentTick = 0;
+}
+
 int main() {
     if (enet_initialize() != 0) {
         std::cerr << "An error occurred while initializing ENet." << std::endl;
@@ -28,15 +59,14 @@ int main() {
 
     std::cout << "Initialized ENet successfully.\n";
 
-    ThreadedHost host;
     {
         ENetAddress address;
         address.host = ENET_HOST_ANY;
         address.port = PORT;
 
-        host.host = enet_host_create(&address, MAX_CLIENTS, 2, 0, 0);
+        host = enet_host_create(&address, MAX_CLIENTS, 2, 0, 0);
 
-        if (!host.host) {
+        if (!host) {
             std::cerr << "An error occurred while trying to create an ENet client host." << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -44,29 +74,25 @@ int main() {
 
     {
         char ip[16];
-        enet_address_get_host_ip(&host.host->address, ip, sizeof(ip));
-        std::cout << "Address: " << ip << ":" << host.host->address.port << "\n";
+        enet_address_get_host_ip(&host->address, ip, sizeof(ip));
+        std::cout << "Address: " << ip << ":" << host->address.port << "\n";
     }
 
     // TODO: BIG ISSUE: CPU is from 20%-30% usage WITHOUT CLIENTS CONNECTED and when a client connects
     // it gets lower, probably because of all the mutexes(which is another problem because client update
     // should not be delayed or else it will get the wrong position)
 
-    // 1 (second) / 66.66... (tickRate) = 15ms
-    const enet_uint8 tickInterval = 15;
-    std::thread clientsUpdateThread(&ClientsHandler::updateClients, &clients, (double)tickInterval * 0.001, std::ref(host));
+    // 1 (second) / 66.66... (tickRate) = 15ms = 0.015ms
+    tickInterval = 0.015;
 
-    bool running = true;
-    while (running) {
+    while (true) {
         ENetEvent event;
         
-        while (host.service(&event, 5) > 0) {
+        while (enet_host_service(host, &event, 0) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
                     char ip[16];
-                    host.mutex.lock();
-                    enet_address_get_host_ip(&host.host->address, ip, sizeof(ip));
-                    host.mutex.unlock();
+                    enet_address_get_host_ip(&host->address, ip, sizeof(ip));
 
                     Client* pClient;
                     {
@@ -74,7 +100,6 @@ int main() {
                         clientPlayer.rect = {100, 100, 20,20};
                         clientPlayer.color = {100, 31, 75, 255};
                         
-                        clients.lock();
                         pClient = clients.getById(clients.add(event.peer->address, clientPlayer));
                     }
 
@@ -87,24 +112,17 @@ int main() {
                            << pClient->player.color.g
                            << pClient->player.color.b
                            << pClient->player.rect;
-                    clients.unlock();
-
-                    host.mutex.lock();
-                    broadcastPacket(host.host, packet, true, 0);
-                    host.mutex.unlock();
+                    
+                    broadcastPacket(host, packet, true, 0);
                     packet.deleteData();
                     
                     packet << (enet_uint8)SERVER_DATA
-                           << tickInterval;
-                
-                    clients.lock();
-                    packet << clients.size()-1;
-                    clients.unlock();
+                           << (enet_uint8)(tickInterval*1000)
+                           << clients.size()-1;
 
                     sendPacket(event.peer, packet, true, 0);
                     packet.deleteData();
                     
-                    clients.lock();
                     for (auto& client : clients.get()) {
                         if (client->id == pClient->id)
                             continue;
@@ -119,7 +137,6 @@ int main() {
                         sendPacket(event.peer, packet, true, 0);
                         packet.deleteData();
                     }
-                    clients.unlock();
 
                     break;
                 }
@@ -140,7 +157,6 @@ int main() {
                             break;
                         }
                         
-                        clients.lock();
                         Client* pClient = clients.getByAddress(event.peer->address);
                         if (!pClient) {
                             enet_packet_destroy(event.packet);
@@ -148,7 +164,6 @@ int main() {
                         }
 
                         pClient->player.dir = playerDir;
-                        clients.unlock();
                     }
 
                     enet_packet_destroy(event.packet);
@@ -156,7 +171,6 @@ int main() {
                 }
 
                 case ENET_EVENT_TYPE_DISCONNECT: {
-                    clients.lock();
                     Client* pClient = clients.getByAddress(event.peer->address);
                     
                     if (!pClient) {
@@ -172,15 +186,12 @@ int main() {
                     Packet packet;
                     packet << (enet_uint8)CLIENT_DISCONNECT
                            << pClient->id;
-                    
-                    host.mutex.lock();
-                    broadcastPacket(host.host, packet, true, 0);
-                    host.mutex.unlock();
+
+                    broadcastPacket(host, packet, true, 0);
 
                     packet.deleteData();
 
                     clients.erase(pClient->id);
-                    clients.unlock();
 
                     event.peer->data = NULL;
                     break;
@@ -190,11 +201,10 @@ int main() {
                     break;
             }
         }
+
+        update();
     }
 
-    clients.stopUpdateClients();
-    clientsUpdateThread.join();
-
-    enet_host_destroy(host.host);
+    enet_host_destroy(host);
     enet_deinitialize();
 }

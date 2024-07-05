@@ -1,9 +1,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <thread>
-#include <mutex>
-#include <sstream>
 
 #include <enet/enet.h>
 
@@ -29,23 +26,8 @@ struct Client {
 
 Client* pClient = nullptr;
 
-#define DATA_TYPE_NONE 0
-#define DATA_TYPE_TICK_INTERVAL 1
-void* threadedData = nullptr;
-enet_uint8 threadedDataType = 0;
-std::mutex threadedDataMutex;
-
-std::mutex serverPeerMutex;
-ENetPeer* serverPeer = nullptr;
-
-bool shouldQuit = false;
-std::mutex shouldQuitMutex;
-
-std::mutex clientsMutex;
 std::vector<Client*> clients;
 void eraseClient(const enet_uint8 id) {
-    std::lock_guard<std::mutex> lock(clientsMutex);
-
     enet_uint8 clientsSize = clients.size();
 
     for (enet_uint8 i = 0; i < clientsSize;) {
@@ -74,9 +56,7 @@ enet_uint8 addClient(const enet_uint8& id, Player& player) {
     pClient->id = id;
     pClient->player = player;
 
-    clientsMutex.lock();
     clients.push_back(pClient);
-    clientsMutex.unlock();
     
     return pClient->id;
 }
@@ -89,10 +69,8 @@ Client* getClientById(const enet_uint8& id) {
     return nullptr;
 }
 
-void disconnect(ENetHost* client, ENetEvent& event) {
-    serverPeerMutex.lock();
-    enet_peer_disconnect(serverPeer, 0);
-    serverPeerMutex.unlock();
+void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
+    enet_peer_disconnect(peer, 0);
 
     enet_uint8 disconnected = false;
     /* Allow up to 3 seconds for the disconnect to succeed
@@ -115,9 +93,7 @@ void disconnect(ENetHost* client, ENetEvent& event) {
     // Drop connection, since disconnection didn't successed
     if (!disconnected) {
         puts("Dropped connection because server did not respond on time.");
-        serverPeerMutex.lock();
-        enet_peer_reset(serverPeer);
-        serverPeerMutex.unlock();
+        enet_peer_reset(peer);
     }
 }
 
@@ -145,7 +121,7 @@ enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
 }
 
 /// @return tickInterval 
-float getInitialData(ENetHost* client, ENetEvent& event) {
+float getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
     float tickInterval = 0.0f;
 
     bool handlingClientsList = false;
@@ -166,11 +142,8 @@ float getInitialData(ENetHost* client, ENetEvent& event) {
 
         if (packetType == CLIENT_CONNECT) {
             enet_uint8 id = handleClientConnect(packetUnwrapper);
-            if (!pClient) {
-                clientsMutex.lock();
+            if (!pClient)
                 pClient = getClientById(id);
-                clientsMutex.unlock();
-            }
         }
             
         else if (packetType == SERVER_DATA) {
@@ -180,14 +153,7 @@ float getInitialData(ENetHost* client, ENetEvent& event) {
                 enet_uint8 tickIntervalTemp;
                 packetUnwrapper >> tickIntervalTemp
                                 >> clientsListSize;
-                
                 tickInterval = (float)tickIntervalTemp * 0.001f;
-
-                threadedDataMutex.lock();
-                threadedData = new float();
-                *(float*)threadedData = tickInterval;
-                threadedDataType = DATA_TYPE_TICK_INTERVAL;
-                threadedDataMutex.unlock();
                 
                 if (clientsListSize == 0) {
                     enet_packet_destroy(event.packet);
@@ -203,17 +169,17 @@ float getInitialData(ENetHost* client, ENetEvent& event) {
                 break;
         }
 
-        std::stringstream msg{};
-        msg << "PLAYERS CONNECTED: " << clientsListSize+1 << "\n";
-        std::cout << msg.str();
-
         enet_packet_destroy(event.packet);
     }
+    
+    std::cout << "PLAYERS CONNECTED: " << clientsListSize+1 << "\n";
 
     return tickInterval;
 }
 
-void handleConnection() {
+int main() {
+    rl::InitWindow(200, 200, "Multiplayer Game");
+
     if (enet_initialize() != 0) {
         std::cerr << "An error occurred while initializing ENet." << std::endl;
         exit(EXIT_FAILURE);
@@ -226,7 +192,7 @@ void handleConnection() {
         exit(EXIT_FAILURE);
     }
 
-    serverPeerMutex.lock(); // it will be locked until everything is ready
+    ENetPeer* serverPeer;
     {
         ENetAddress address;
         enet_address_set_host(&address, "127.0.0.1");
@@ -243,132 +209,75 @@ void handleConnection() {
     if (enet_host_service(client, &event, 5000) <= 0 || event.type != ENET_EVENT_TYPE_CONNECT) {
         enet_peer_reset(serverPeer);
         serverPeer = nullptr;
-        serverPeerMutex.unlock();
 
         puts("Connection to server failed.");
         exit(EXIT_FAILURE);
     }
 
-    // Get initial data
-    float tickInterval = getInitialData(client, event);
-    serverPeerMutex.unlock();
-
-    while (true) {
-        timerSleep(tickInterval);
-
-        shouldQuitMutex.lock();
-        if (shouldQuit) {
-            shouldQuitMutex.unlock();
-            break;
-        }
-        shouldQuitMutex.unlock();
-
-        while (enet_host_service(client, &event, 5) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
-            if (event.packet->dataLength < sizeof(enet_uint8)) {
-                std::cout << "ERROR WHILE RECEIVING PACKET => DATA LENGTH: " << event.packet->dataLength << std::endl;
-                serverPeerMutex.lock();
-                enet_peer_reset(serverPeer);
-                serverPeerMutex.unlock();
-                enet_packet_destroy(event.packet);
-                exit(EXIT_FAILURE);
-            }
-            
-            PacketUnwrapper packetUnwrapper(event.packet->data);
-
-            enet_uint8 type;
-            packetUnwrapper >> type;
-
-            if (type == CLIENT_DISCONNECT) {
-                enet_uint8 id = 0;
-                packetUnwrapper >> id;
-
-                eraseClient(id);
-                std::stringstream msg{};
-                msg << "DISCONNECTED => ID: " << (enet_uint16)id
-                    << "\nCURRENT CLIENT ID: " << (enet_uint16)pClient->id << "\n";
-                std::cout << msg.str();
-            }
-
-            if (type == CLIENT_CONNECT)
-                handleClientConnect(packetUnwrapper);
-            
-            if (type == PLAYER_INPUT) {
-                enet_uint8 id;
-                packetUnwrapper >> id;
-                
-                clientsMutex.lock();
-                Client* pSomeClient = getClientById(id);
-                if (!pSomeClient) {
-                    std::cout << "ERROR => received input from a client that doesn't seem to exist\n";
-                    enet_packet_destroy(event.packet);
-                    break;
-                }
-
-                {
-                    enet_uint8 dir;
-                    packetUnwrapper >> dir;
-                    if (id != pClient->id)
-                        pSomeClient->player.dir = dir;
-                }
-
-                packetUnwrapper >> pSomeClient->player.rect.x
-                                >> pSomeClient->player.rect.y;
-                clientsMutex.unlock();
-            }
-
-            enet_packet_destroy(event.packet);
-        }
-    }
-
-    disconnect(client, event);
-    enet_host_destroy(client);
-    enet_deinitialize();
-}
-
-int main() {
-    rl::InitWindow(200, 200, "Multiplayer Game");
-
-    std::thread connectionThread(handleConnection);
-
     TickHandler tickHandler;
-    while (true) {
-        Sleep(100);
+    tickHandler.tickInterval = getInitialData(client, event, serverPeer);
 
-        threadedDataMutex.lock();
-        if (threadedDataType == DATA_TYPE_TICK_INTERVAL) {
-            tickHandler.tickInterval = *(float*)threadedData;
-            delete (float*)threadedData;
-            threadedData = nullptr;
-            threadedDataType = DATA_TYPE_NONE;
-
-            threadedDataMutex.unlock();
-            break;
-        }
-        threadedDataMutex.unlock();
-    }
-
-    while (true) {
-        if (rl::WindowShouldClose()) {
-            shouldQuitMutex.lock();
-            shouldQuit = true;
-            shouldQuitMutex.unlock();
-            break;
-        }
-
+    while (!rl::WindowShouldClose()) {
         float dt = rl::GetFrameTime();
         
         tickHandler.update(dt);
         if (tickHandler.shouldTick()) {
-            clientsMutex.lock();
+            while (enet_host_service(client, &event, 0) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
+                if (event.packet->dataLength < sizeof(enet_uint8)) {
+                    std::cout << "ERROR WHILE RECEIVING PACKET => DATA LENGTH: " << event.packet->dataLength << std::endl;
+                    enet_peer_reset(serverPeer);
+                    enet_packet_destroy(event.packet);
+                    exit(EXIT_FAILURE);
+                }
+                
+                PacketUnwrapper packetUnwrapper(event.packet->data);
+
+                enet_uint8 type;
+                packetUnwrapper >> type;
+
+                if (type == CLIENT_DISCONNECT) {
+                    enet_uint8 id = 0;
+                    packetUnwrapper >> id;
+
+                    eraseClient(id);
+                    std::cout << "DISCONNECTED => ID: " << (enet_uint16)id
+                              << "\nCURRENT CLIENT ID: " << (enet_uint16)pClient->id << "\n";
+                }
+
+                if (type == CLIENT_CONNECT)
+                    handleClientConnect(packetUnwrapper);
+                
+                if (type == PLAYER_INPUT) {
+                    enet_uint8 id;
+                    packetUnwrapper >> id;
+                    
+                    Client* pSomeClient = getClientById(id);
+                    if (!pSomeClient) {
+                        std::cout << "ERROR => received input from a client that doesn't seem to exist\n";
+                        enet_packet_destroy(event.packet);
+                        break;
+                    }
+
+                    {
+                        enet_uint8 dir;
+                        packetUnwrapper >> dir;
+                        if (id != pClient->id)
+                            pSomeClient->player.dir = dir;
+                    }
+
+                    packetUnwrapper >> pSomeClient->player.rect.x
+                                    >> pSomeClient->player.rect.y;
+                }
+
+                enet_packet_destroy(event.packet);
+            }
+
             for (auto& client : clients) {
-                if (client->id == pClient->id) {
-                    serverPeerMutex.lock();
+                if (client->id == pClient->id)
                     client->player.update(serverPeer);
-                    serverPeerMutex.unlock();
-                } else
+                else
                     client->player.update(nullptr);
             }
-            clientsMutex.unlock();
         }
 
         rl::BeginDrawing();
@@ -382,6 +291,7 @@ int main() {
     }
 
     rl::CloseWindow();
-
-    connectionThread.join();
+    disconnect(client, event, serverPeer);
+    enet_host_destroy(client);
+    enet_deinitialize();
 }

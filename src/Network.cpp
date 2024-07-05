@@ -1,10 +1,5 @@
 #include "Network.h"
 
-int ThreadedHost::service(ENetEvent* event, enet_uint32 blockMilliseconds) {
-	std::lock_guard<std::mutex> lock(mutex);
-	return enet_host_service(host, event, blockMilliseconds);
-}
-
 Packet::Packet() {
 	deleteData();
 }
