@@ -21,23 +21,15 @@ enet_uint8 ClientsHandler::add(const ENetAddress& address, const Player& player)
 }
 
 void ClientsHandler::erase(const enet_uint8 id) {
+    delete clients[id];
+    clients.erase(clients.begin()+id);
+
     enet_uint8 clientsSize = clients.size();
-    for (enet_uint8 i = 0; i < clientsSize;) {
-        if (clients[i]->id > id)
-            --(clients[i]->id);
-
-        else if (clients[i]->id == id) {
-            delete clients[i];
-            clients.erase(clients.begin()+i);
-            --clientsSize;
-            continue;
-        }
-
-        ++i;
-    }
+    for (enet_uint8 i = id; i < clientsSize; ++i)
+        --clients[i]->id;
 }
 
-enet_uint16 ClientsHandler::size() const {
+enet_uint8 ClientsHandler::size() const {
     return clients.size();
 }
 

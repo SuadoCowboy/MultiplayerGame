@@ -29,24 +29,21 @@ Client* pClient = nullptr;
 std::vector<Client*> clients;
 void eraseClient(const enet_uint8 id) {
     enet_uint8 clientsSize = clients.size();
-
     for (enet_uint8 i = 0; i < clientsSize;) {
-        if (clients[i]->id > id) {
-            --(clients[i]->id);
-            clients[i]->player.setIdText(std::to_string(clients[i]->id).c_str(), 10);
-        }
-        
-        else if (clients[i]->id == id) {
-            --clientsSize;
+        if (clients[i]->id == id) {
             delete clients[i];
             clients.erase(clients.begin()+i);
+            --clientsSize;
             continue;
+        }
+
+        if (clients[i]->id > id) {
+            --clients[i]->id;
+            clients[i]->player.setIdText(std::to_string(clients[i]->id).c_str(), 10);
         }
 
         ++i;
     }
-
-    if (pClient->id > id) --pClient->id;
 }
 
 enet_uint8 addClient(const enet_uint8& id, Player& player) {
@@ -110,7 +107,7 @@ enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
 
     packetUnwrapper >> player.rect;
     
-    std::cout << "CONNECTED => ID: " << (enet_uint16)id
+    std::cout << "CONNECTED => ID: " << (enet_uint8)id
             << " | POSITION: "
             << player.rect.x << ", "
             << player.rect.y
@@ -125,7 +122,7 @@ float getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
     float tickInterval = 0.0f;
 
     bool handlingClientsList = false;
-    enet_uint16 clientsListSize = 0;
+    enet_uint8 clientsListSize = 0;
     enet_uint8 clientsListIndex = 0;
     while (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
         if (event.packet->dataLength < sizeof(enet_uint8)) {
