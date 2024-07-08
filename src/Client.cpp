@@ -19,6 +19,26 @@ namespace rl {
 
 #define PORT 5055
 
+#define FAKE_LAG 0.0200f // 200ms of (fake) lag
+
+ENetPeer* serverPeer = nullptr;
+bool receivePacket(ENetHost* host, ENetEvent& event, const enet_uint32& blockingMs, PacketUnwrapper& output) {
+    int result = enet_host_service(host, &event, blockingMs);
+    if (event.type != ENET_EVENT_TYPE_RECEIVE || result <= 0)
+        return false;
+    
+    if (event.packet->dataLength < sizeof(enet_uint8)) {
+        std::cout << "ERROR WHILE RECEIVING PACKET => DATA LENGTH: " << event.packet->dataLength << std::endl;
+        enet_peer_reset(serverPeer);
+        enet_packet_destroy(event.packet);
+        exit(EXIT_FAILURE);
+    }
+    
+    output = PacketUnwrapper(event.packet->data);
+
+    return true;
+}
+
 struct Client {
     enet_uint8 id;
     Player player;
@@ -106,13 +126,8 @@ enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
     player.color.a = 255;
 
     packetUnwrapper >> player.rect;
-    
-    std::cout << "CONNECTED => ID: " << (enet_uint8)id
-            << " | POSITION: "
-            << player.rect.x << ", "
-            << player.rect.y
-            << "\n";
-    
+
+    std::cout << "CONNECTED => ID: " << (enet_uint16)id << "\n";
     addClient(id, player);
     return id;
 }
@@ -189,7 +204,6 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
-    ENetPeer* serverPeer;
     {
         ENetAddress address;
         enet_address_set_host(&address, "127.0.0.1");
@@ -214,37 +228,40 @@ int main() {
     TickHandler tickHandler;
     tickHandler.tickInterval = getInitialData(client, event, serverPeer);
 
+    #ifdef FAKE_LAG // Don't know if that's how I should test a lag scenario but that's how I'm doing.
+    if (pClient->id == 0) {
+        tickHandler.tickInterval = FAKE_LAG;
+        std::cout << "DEBUG => FAKE LAG IS ACTIVE\n";
+    }
+    #endif
+    
     while (!rl::WindowShouldClose()) {
         float dt = rl::GetFrameTime();
         
         tickHandler.update(dt);
-        if (tickHandler.shouldTick()) {
-            while (enet_host_service(client, &event, 0) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
-                if (event.packet->dataLength < sizeof(enet_uint8)) {
-                    std::cout << "ERROR WHILE RECEIVING PACKET => DATA LENGTH: " << event.packet->dataLength << std::endl;
-                    enet_peer_reset(serverPeer);
-                    enet_packet_destroy(event.packet);
-                    exit(EXIT_FAILURE);
-                }
-                
-                PacketUnwrapper packetUnwrapper(event.packet->data);
-
+        while (tickHandler.shouldTick()) {
+            PacketUnwrapper packetUnwrapper;
+            while (receivePacket(client, event, 0, packetUnwrapper)) {
                 enet_uint8 type;
                 packetUnwrapper >> type;
 
-                if (type == CLIENT_DISCONNECT) {
+                switch (type) {
+                case CLIENT_DISCONNECT: {
                     enet_uint8 id = 0;
                     packetUnwrapper >> id;
 
                     eraseClient(id);
                     std::cout << "DISCONNECTED => ID: " << (enet_uint16)id
                               << "\nCURRENT CLIENT ID: " << (enet_uint16)pClient->id << "\n";
+                    
+                    break;
                 }
 
-                if (type == CLIENT_CONNECT)
+                case CLIENT_CONNECT:
                     handleClientConnect(packetUnwrapper);
+                    break;
                 
-                if (type == PLAYER_INPUT) {
+                case PLAYER_INPUT: {
                     enet_uint8 id;
                     packetUnwrapper >> id;
                     
@@ -264,6 +281,9 @@ int main() {
 
                     packetUnwrapper >> pSomeClient->player.rect.x
                                     >> pSomeClient->player.rect.y;
+                    
+                    break;
+                }
                 }
 
                 enet_packet_destroy(event.packet);
@@ -282,7 +302,13 @@ int main() {
 
         for (auto& client : clients) {
             rl::DrawRectangle(client->player.rect.x, client->player.rect.y, client->player.rect.width, client->player.rect.height, client->player.color);
-            rl::DrawText(client->player.idText.c_str(), client->player.idTextPosition.x, client->player.idTextPosition.y, client->player.idTextFontSize, rl::WHITE);
+            rl::DrawText(
+                client->player.idText.c_str(),
+                client->player.rect.x+client->player.rect.width*0.5f-client->player.idTextWidthHalf,
+                client->player.rect.y-client->player.idTextFontSize-2,
+                client->player.idTextFontSize,
+                rl::WHITE
+            );
         }
         rl::EndDrawing();
     }
