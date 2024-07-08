@@ -36,7 +36,6 @@ struct Player {
         idTextFontSize = _idTextFontSize;
 
         idTextWidthHalf = rl::MeasureText(idText.c_str(), idTextFontSize)*0.5f;
-        update(nullptr);
     }
 #else
     enet_uint8 oldDir = 0;
@@ -72,8 +71,6 @@ struct Player {
                 packet.deleteData();
             }
         }
-        
-        idTextPosition = {rect.x+rect.width*0.5f-idTextWidthHalf, rect.y-idTextFontSize-2};
 #endif
         rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25);
         rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1));
