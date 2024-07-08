@@ -82,6 +82,7 @@ int main() {
 
     // 1 (second) / 66.66... (tickRate) = 15ms = 0.015s
     tickInterval = 0.015;
+    maxTick = 1 / tickInterval - 1;
 
     while (true) {
         ENetEvent event;
