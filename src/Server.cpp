@@ -29,7 +29,7 @@ void update() {
     for (auto& client : clients.get()) {
         client->player.update();
 
-        if ((currentTick % 5) != 0 || client->player.oldDir == client->player.dir)
+        if (client->player.oldDir == client->player.dir)
             continue;
         
         client->player.oldDir = client->player.dir;
@@ -40,14 +40,12 @@ void update() {
                 << client->player.dir
                 << client->player.rect.x
                 << client->player.rect.y;
-        
+
         broadcastPacket(host, packet, false, 1);
         packet.deleteData();
     }
 
-    ++currentTick;
-    if (currentTick >= maxTick)
-        currentTick = 0;
+    currentTick = (currentTick + 1) % maxTick;
 }
 
 int main() {
@@ -82,7 +80,7 @@ int main() {
     // it gets lower, probably because of all the mutexes(which is another problem because client update
     // should not be delayed or else it will get the wrong position)
 
-    // 1 (second) / 66.66... (tickRate) = 15ms = 0.015ms
+    // 1 (second) / 66.66... (tickRate) = 15ms = 0.015s
     tickInterval = 0.015;
 
     while (true) {
