@@ -8,7 +8,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 # Client
-add_executable(MultiplayerGame src/Client.cpp src/Network.cpp src/TimeSystem.cpp src/Math.cpp)
+add_executable(MultiplayerGame src/Client.cpp src/Network.cpp)
 
 target_include_directories(MultiplayerGame PRIVATE include src)
 target_link_libraries(MultiplayerGame PRIVATE -L${PROJECT_SOURCE_DIR}/libs -lenet-d -lws2_32 -lwinmm -lraylib)
