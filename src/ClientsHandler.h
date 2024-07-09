@@ -7,8 +7,7 @@
 #include "Player.h"
 
 struct Client {
-    ENetAddress address;
-    enet_uint8 id;
+    ENetPeer* peer;
     Player player;
 };
 
@@ -17,14 +16,13 @@ public:
     ClientsHandler() {}
     ~ClientsHandler();
 
-    enet_uint8 add(const ENetAddress& address, const Player& player);
-    void erase(const enet_uint8 id);
+    void add(ENetPeer* peer, const Player& player);
+    void erase(const enet_uint16 id);
 
     enet_uint8 size() const;
     
     std::vector<Client*>& get();
-    Client* getById(const enet_uint8& id);
-    Client* getByAddress(const ENetAddress& address);
+    Client* getById(const enet_uint16& id);
 
 private:
     std::vector<Client*> clients;

@@ -8,25 +8,23 @@ ClientsHandler::~ClientsHandler() {
     clients.clear();
 }
 
-enet_uint8 ClientsHandler::add(const ENetAddress& address, const Player& player) {
+void ClientsHandler::add(ENetPeer* peer, const Player& player) {
     Client* pClient = new Client();
     
-    pClient->address = address;
-    pClient->id = size();
+    pClient->peer = peer;
     pClient->player = player;
 
     clients.push_back(pClient);
-    
-    return pClient->id;
 }
 
-void ClientsHandler::erase(const enet_uint8 id) {
-    delete clients[id];
-    clients.erase(clients.begin()+id);
-
-    enet_uint8 clientsSize = clients.size();
-    for (enet_uint8 i = id; i < clientsSize; ++i)
-        --clients[i]->id;
+void ClientsHandler::erase(const enet_uint16 id) {
+    enet_uint8 clientsSize = size();
+    for (enet_uint8 i = 0; i < clientsSize; ++i) {
+        if (clients[i]->peer->incomingPeerID == id) {
+            delete clients[i];
+            clients.erase(clients.begin()+i);
+        }
+    }
 }
 
 enet_uint8 ClientsHandler::size() const {
@@ -37,17 +35,9 @@ std::vector<Client*>& ClientsHandler::get() {
     return clients;
 }
 
-Client* ClientsHandler::getById(const enet_uint8& id) {
+Client* ClientsHandler::getById(const enet_uint16& id) {
     for (auto& client : clients)
-        if (client->id == id)
-            return client;
-    
-    return nullptr;
-}
-
-Client* ClientsHandler::getByAddress(const ENetAddress& address) {
-    for (auto& client : clients)
-        if (client->address.host == address.host && client->address.port == address.port)
+        if (client->peer->incomingPeerID == id)
             return client;
     
     return nullptr;
