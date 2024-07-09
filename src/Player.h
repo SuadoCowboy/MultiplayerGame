@@ -43,7 +43,9 @@ struct Player {
 
     void update(
 #ifdef CLIENT
-        ENetPeer* serverPeer
+        ENetPeer* serverPeer,
+        const float& dt,
+        const enet_uint8& tickRate
 #endif
         ) {
 #ifdef CLIENT
@@ -72,7 +74,15 @@ struct Player {
             }
         }
 #endif
-        rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25);
-        rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1));
+        rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25)
+#ifdef CLIENT
+        * dt * tickRate
+#endif
+        ;
+        rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1))
+#ifdef CLIENT
+        * dt * tickRate
+#endif
+        ;
     }
 };
