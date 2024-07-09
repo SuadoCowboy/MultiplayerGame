@@ -36,7 +36,7 @@ void update() {
 
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT
-                << client->id
+                << client->peer->incomingPeerID
                 << client->player.dir
                 << client->player.rect.x
                 << client->player.rect.y;
@@ -99,14 +99,15 @@ int main() {
                         clientPlayer.rect = {100, 100, 20,20};
                         clientPlayer.color = {100, 31, 75, 255};
                         
-                        pClient = clients.getById(clients.add(event.peer->address, clientPlayer));
+                        clients.add(event.peer, clientPlayer);
+                        pClient = clients.getById(event.peer->incomingPeerID);
                     }
 
-                    std::cout << "CLIENT CONNECTED => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << event.peer->address.port << "\n";
+                    std::cout << "CLIENT CONNECTED => ID: " << pClient->peer->incomingPeerID << " | IP: " << ip << ":" << event.peer->address.port << "\n";
 
                     Packet packet;
                     packet << (enet_uint8)CLIENT_CONNECT
-                           << pClient->id
+                           << pClient->peer->incomingPeerID
                            << pClient->player.color.r
                            << pClient->player.color.g
                            << pClient->player.color.b
@@ -116,27 +117,21 @@ int main() {
                     packet.deleteData();
                     
                     packet << (enet_uint8)SERVER_DATA
-                           << (enet_uint8)(tickInterval*1000)
-                           << clients.size()-1;
-
-                    sendPacket(event.peer, packet, true, 0);
-                    packet.deleteData();
+                           << (enet_uint8)(1/tickInterval);
                     
                     for (auto& client : clients.get()) {
-                        if (client->id == pClient->id)
+                        if (client->peer == pClient->peer)
                             continue;
 
-                        packet << (enet_uint8)SERVER_DATA
-                               << client->id
+                        packet << client->peer->incomingPeerID
                                << client->player.color.r
                                << client->player.color.g
                                << client->player.color.b
                                << client->player.rect;
-                        
-                        sendPacket(event.peer, packet, true, 0);
-                        packet.deleteData();
                     }
 
+                    sendPacket(event.peer, packet, true, 0);
+                    packet.deleteData();
                     break;
                 }
 
@@ -148,7 +143,9 @@ int main() {
 
                     if (packetType == PLAYER_INPUT) {
                         enet_uint8 playerDir;
-                        packetUnwrapper >> playerDir;
+                        float dt;
+                        packetUnwrapper >> playerDir
+                                        >> dt;
 
                         // 15 = 1 | 2 | 4 | 8 = all keys pressed. Above that it's unknown data.
                         if (playerDir > 15) {
@@ -156,7 +153,7 @@ int main() {
                             break;
                         }
                         
-                        Client* pClient = clients.getByAddress(event.peer->address);
+                        Client* pClient = clients.getById(event.peer->incomingPeerID);
                         if (!pClient) {
                             enet_packet_destroy(event.packet);
                             break;
@@ -170,7 +167,7 @@ int main() {
                 }
 
                 case ENET_EVENT_TYPE_DISCONNECT: {
-                    Client* pClient = clients.getByAddress(event.peer->address);
+                    Client* pClient = clients.getById(event.peer->incomingPeerID);
                     
                     if (!pClient) {
                         std::cout << "UNKNOWN CLIENT TRIED TO DISCONNECT\n";
@@ -178,19 +175,19 @@ int main() {
                     }
 
                     char ip[16];
-                    enet_address_get_host_ip(&pClient->address, ip, sizeof(ip));
+                    enet_address_get_host_ip(&pClient->peer->address, ip, sizeof(ip));
 
-                    std::cout << "CLIENT DISCONNECTED => ID: " << (enet_uint16)pClient->id << " | IP: " << ip << ":" << pClient->address.port << "\n";
+                    std::cout << "CLIENT DISCONNECTED => ID: " << pClient->peer->incomingPeerID << " | IP: " << ip << ":" << pClient->peer->address.port << "\n";
                     
                     Packet packet;
                     packet << (enet_uint8)CLIENT_DISCONNECT
-                           << pClient->id;
+                           << pClient->peer->incomingPeerID;
 
                     broadcastPacket(host, packet, true, 0);
 
                     packet.deleteData();
 
-                    clients.erase(pClient->id);
+                    clients.erase(pClient->peer->incomingPeerID);
 
                     event.peer->data = NULL;
                     break;
