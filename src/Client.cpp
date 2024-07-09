@@ -15,15 +15,15 @@ namespace rl {
 #include "Player.h"
 #include "Network.h"
 #include "Shared.h"
-#include "TimeSystem.h"
 
 #define PORT 5055
 
 #define FAKE_LAG 0.0200f // 200ms of (fake) lag
 
 ENetPeer* serverPeer = nullptr;
-bool receivePacket(ENetHost* host, ENetEvent& event, const enet_uint32& blockingMs, PacketUnwrapper& output) {
-    int result = enet_host_service(host, &event, blockingMs);
+enet_uint8 serverTickRate = 0;
+bool receivePacket(ENetHost* host, ENetEvent& event, PacketUnwrapper& output) {
+    int result = enet_host_service(host, &event, 0);
     if (event.type != ENET_EVENT_TYPE_RECEIVE || result <= 0)
         return false;
     
@@ -40,30 +40,21 @@ bool receivePacket(ENetHost* host, ENetEvent& event, const enet_uint32& blocking
 }
 
 struct Client {
-    enet_uint8 id;
+    enet_uint16 id;
     Player player;
 };
 
 Client* pClient = nullptr;
-
 std::vector<Client*> clients;
-void eraseClient(const enet_uint8 id) {
+
+void eraseClient(const enet_uint16 id) {
     enet_uint8 clientsSize = clients.size();
-    for (enet_uint8 i = 0; i < clientsSize;) {
+    for (enet_uint8 i = 0; i < clientsSize; ++i)
         if (clients[i]->id == id) {
             delete clients[i];
             clients.erase(clients.begin()+i);
-            --clientsSize;
-            continue;
+            break;
         }
-
-        if (clients[i]->id > id) {
-            --clients[i]->id;
-            clients[i]->player.setIdText(std::to_string(clients[i]->id).c_str(), 10);
-        }
-
-        ++i;
-    }
 }
 
 enet_uint8 addClient(const enet_uint8& id, Player& player) {
@@ -79,7 +70,7 @@ enet_uint8 addClient(const enet_uint8& id, Player& player) {
 }
 
 /// @warning clientsMutex is not locked since it doesn't know for how long it needs to be locked
-Client* getClientById(const enet_uint8& id) {
+Client* getClientById(const enet_uint16& id) {
     for (auto& client : clients)
         if (client->id == id) return client;
     
@@ -115,7 +106,7 @@ void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
 }
 
 enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
-    enet_uint8 id;
+    enet_uint16 id;
     packetUnwrapper >> id;
 
     Player player;
@@ -127,18 +118,13 @@ enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
 
     packetUnwrapper >> player.rect;
 
-    std::cout << "CONNECTED => ID: " << (enet_uint16)id << "\n";
+    std::cout << "CONNECTED => ID: " << id << "\n";
     addClient(id, player);
     return id;
 }
 
-/// @return tickInterval 
-float getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
-    float tickInterval = 0.0f;
-
-    bool handlingClientsList = false;
+void getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
     enet_uint8 clientsListSize = 0;
-    enet_uint8 clientsListIndex = 0;
     while (enet_host_service(client, &event, 5000) > 0 && event.type == ENET_EVENT_TYPE_RECEIVE) {
         if (event.packet->dataLength < sizeof(enet_uint8)) {
             std::cout << "ERROR WHILE RECEIVING PACKET => DATA LENGTH: " << event.packet->dataLength << std::endl;
@@ -153,40 +139,29 @@ float getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
         packetUnwrapper >> packetType;
 
         if (packetType == CLIENT_CONNECT) {
-            enet_uint8 id = handleClientConnect(packetUnwrapper);
+            enet_uint16 id = handleClientConnect(packetUnwrapper);
             if (!pClient)
                 pClient = getClientById(id);
         }
             
         else if (packetType == SERVER_DATA) {
-            if (!handlingClientsList) {
-                handlingClientsList = true;
+            packetUnwrapper >> serverTickRate;
 
-                enet_uint8 tickIntervalTemp;
-                packetUnwrapper >> tickIntervalTemp
-                                >> clientsListSize;
-                tickInterval = (float)tickIntervalTemp * 0.001f;
-                
-                if (clientsListSize == 0) {
-                    enet_packet_destroy(event.packet);
-                    break;
-                }
-                
-                continue;
+            std::cout << "SERVER TICK RATE => " << serverTickRate << "\n";
+
+            while (event.packet->dataLength > packetUnwrapper.offset) {
+                handleClientConnect(packetUnwrapper);
+                ++clientsListSize;
             }
 
-            handleClientConnect(packetUnwrapper);
-            ++clientsListIndex;
-            if (clientsListIndex >= clientsListSize)
-                break;
+            enet_packet_destroy(event.packet);
+            break;
         }
 
         enet_packet_destroy(event.packet);
     }
     
     std::cout << "PLAYERS CONNECTED: " << clientsListSize+1 << "\n";
-
-    return tickInterval;
 }
 
 int main() {
@@ -224,83 +199,25 @@ int main() {
         puts("Connection to server failed.");
         exit(EXIT_FAILURE);
     }
-
-    TickHandler tickHandler;
-    tickHandler.tickInterval = getInitialData(client, event, serverPeer);
-
-    #ifdef FAKE_LAG // Don't know if that's how I should test a lag scenario but that's how I'm doing.
-    if (pClient->id == 0) {
-        tickHandler.tickInterval = FAKE_LAG;
-        std::cout << "DEBUG => FAKE LAG IS ACTIVE\n";
-    }
-    #endif
     
+    getInitialData(client, event, serverPeer);
+
+    //#ifdef FAKE_LAG // mmmmmmmmmmmmmmmm
+    // TODO: do.
+    //#endif
+
     while (!rl::WindowShouldClose()) {
         float dt = rl::GetFrameTime();
-        
-        tickHandler.update(dt);
-        while (tickHandler.shouldTick()) {
-            PacketUnwrapper packetUnwrapper;
-            while (receivePacket(client, event, 0, packetUnwrapper)) {
-                enet_uint8 type;
-                packetUnwrapper >> type;
-
-                switch (type) {
-                case CLIENT_DISCONNECT: {
-                    enet_uint8 id = 0;
-                    packetUnwrapper >> id;
-
-                    eraseClient(id);
-                    std::cout << "DISCONNECTED => ID: " << (enet_uint16)id
-                              << "\nCURRENT CLIENT ID: " << (enet_uint16)pClient->id << "\n";
-                    
-                    break;
-                }
-
-                case CLIENT_CONNECT:
-                    handleClientConnect(packetUnwrapper);
-                    break;
-                
-                case PLAYER_INPUT: {
-                    enet_uint8 id;
-                    packetUnwrapper >> id;
-                    
-                    Client* pSomeClient = getClientById(id);
-                    if (!pSomeClient) {
-                        std::cout << "ERROR => received input from a client that doesn't seem to exist\n";
-                        enet_packet_destroy(event.packet);
-                        break;
-                    }
-
-                    {
-                        enet_uint8 dir;
-                        packetUnwrapper >> dir;
-                        if (id != pClient->id)
-                            pSomeClient->player.dir = dir;
-                    }
-
-                    packetUnwrapper >> pSomeClient->player.rect.x
-                                    >> pSomeClient->player.rect.y;
-                    
-                    break;
-                }
-                }
-
-                enet_packet_destroy(event.packet);
-            }
-
-            for (auto& client : clients) {
-                if (client->id == pClient->id)
-                    client->player.update(serverPeer);
-                else
-                    client->player.update(nullptr);
-            }
-        }
 
         rl::BeginDrawing();
         rl::ClearBackground(rl::BLACK);
 
         for (auto& client : clients) {
+            if (client->id == pClient->id)
+                client->player.update(serverPeer, dt, serverTickRate);
+            else
+                client->player.update(nullptr, dt, serverTickRate);
+
             rl::DrawRectangle(client->player.rect.x, client->player.rect.y, client->player.rect.width, client->player.rect.height, client->player.color);
             rl::DrawText(
                 client->player.idText.c_str(),
@@ -310,7 +227,58 @@ int main() {
                 rl::WHITE
             );
         }
+        
+        rl::DrawFPS(0.0f,0.0f);
+
         rl::EndDrawing();
+
+        PacketUnwrapper packetUnwrapper;
+        while (receivePacket(client, event, packetUnwrapper)) {
+            enet_uint8 type;
+            packetUnwrapper >> type;
+
+            switch (type) {
+            case CLIENT_DISCONNECT: {
+                enet_uint16 id = 0;
+                packetUnwrapper >> id;
+
+                eraseClient(id);
+                std::cout << "DISCONNECTED => ID: " << id << "\n";
+                
+                break;
+            }
+
+            case CLIENT_CONNECT:
+                handleClientConnect(packetUnwrapper);
+                break;
+            
+            case PLAYER_INPUT: {
+                enet_uint16 id;
+                packetUnwrapper >> id;
+                
+                Client* pSomeClient = getClientById(id);
+                if (!pSomeClient) {
+                    std::cout << "ERROR => received input from a client that doesn't seem to exist\n";
+                    enet_packet_destroy(event.packet);
+                    break;
+                }
+
+                {
+                    enet_uint8 dir;
+                    packetUnwrapper >> dir;
+                    if (id != pClient->id)
+                        pSomeClient->player.dir = dir;
+                }
+
+                packetUnwrapper >> pSomeClient->player.rect.x
+                                >> pSomeClient->player.rect.y;
+                
+                break;
+            }
+            }
+
+            enet_packet_destroy(event.packet);
+        }
     }
 
     rl::CloseWindow();
