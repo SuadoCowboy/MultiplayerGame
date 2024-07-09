@@ -45,7 +45,7 @@ struct Player {
 #ifdef CLIENT
         ENetPeer* serverPeer,
         const float& dt,
-        const enet_uint8& tickRate
+        const float& tickRate
 #endif
         ) {
 #ifdef CLIENT
@@ -79,6 +79,7 @@ struct Player {
         * dt * tickRate
 #endif
         ;
+
         rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1))
 #ifdef CLIENT
         * dt * tickRate
