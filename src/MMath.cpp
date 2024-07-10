@@ -1,5 +1,5 @@
 #include <bits/stdc++.h>
-#include "Math.h"
+#include "MMath.h"
 
 float lerp(const float& start, const float& end, const float& amount) {
     return start + (end - start) * amount;
