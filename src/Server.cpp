@@ -17,26 +17,21 @@ namespace rl {
 
 ClientsHandler clients;
 
-double tickInterval = 0.0;
-enet_uint8 currentTick = 0;
-enet_uint8 maxTick = 0; // = 1/tickInterval
-
 ENetHost* host = nullptr;
 
+TickHandler tickHandler;
+
 void update() {
-    timerSleep(tickInterval);
-
+    enet_uint16 timesToTick = tickHandler.shouldTick();
     for (auto& client : clients.get()) {
-        client->player.update();
+        client->player.update(timesToTick);
 
-        if (client->player.oldDir == client->player.dir)
+        if (client->player.dir == 0)
             continue;
-        
-        client->player.oldDir = client->player.dir;
 
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT
-                << client->peer->incomingPeerID
+                << (enet_uint8)client->peer->incomingPeerID
                 << client->player.dir
                 << client->player.rect.x
                 << client->player.rect.y;
@@ -44,8 +39,6 @@ void update() {
         broadcastPacket(host, packet, false, 1);
         packet.deleteData();
     }
-
-    currentTick = (currentTick + 1) % maxTick;
 }
 
 int main() {
@@ -80,9 +73,9 @@ int main() {
     // it gets lower, probably because of all the mutexes(which is another problem because client update
     // should not be delayed or else it will get the wrong position)
 
-    // 1 (second) / 66.66... (tickRate) = 15ms = 0.015s
-    tickInterval = 0.015;
-    maxTick = 1 / tickInterval - 1;
+    // 1 (second) / 66.66... (tickRate) = 0.015s = 15ms
+    tickHandler.tickInterval = 16;
+    tickHandler.start();
 
     while (true) {
         ENetEvent event;
@@ -107,7 +100,7 @@ int main() {
 
                     Packet packet;
                     packet << (enet_uint8)CLIENT_CONNECT
-                           << pClient->peer->incomingPeerID
+                           << (enet_uint8)pClient->peer->incomingPeerID
                            << pClient->player.color.r
                            << pClient->player.color.g
                            << pClient->player.color.b
@@ -117,13 +110,13 @@ int main() {
                     packet.deleteData();
                     
                     packet << (enet_uint8)SERVER_DATA
-                           << (enet_uint8)(1/tickInterval);
+                           << 1000/tickHandler.tickInterval;
                     
                     for (auto& client : clients.get()) {
                         if (client->peer == pClient->peer)
                             continue;
 
-                        packet << client->peer->incomingPeerID
+                        packet << (enet_uint8)client->peer->incomingPeerID
                                << client->player.color.r
                                << client->player.color.g
                                << client->player.color.b
@@ -142,19 +135,18 @@ int main() {
                     packetUnwrapper >> packetType;
 
                     if (packetType == PLAYER_INPUT) {
-                        enet_uint8 playerDir;
-                        float dt;
-                        packetUnwrapper >> playerDir
-                                        >> dt;
-
-                        // 15 = 1 | 2 | 4 | 8 = all keys pressed. Above that it's unknown data.
-                        if (playerDir > 15) {
+                        Client* pClient = clients.getById(event.peer->incomingPeerID);
+                        if (!pClient) {
                             enet_packet_destroy(event.packet);
                             break;
                         }
-                        
-                        Client* pClient = clients.getById(event.peer->incomingPeerID);
-                        if (!pClient) {
+
+                        enet_uint8 playerDir;
+                        packetUnwrapper >> playerDir;
+                                        //>> pClient->timestamp;
+
+                        // 15 = 1 | 2 | 4 | 8 = all keys pressed. Above that it's unknown data.
+                        if (playerDir > 15) {
                             enet_packet_destroy(event.packet);
                             break;
                         }
@@ -181,7 +173,7 @@ int main() {
                     
                     Packet packet;
                     packet << (enet_uint8)CLIENT_DISCONNECT
-                           << pClient->peer->incomingPeerID;
+                           << (enet_uint8)pClient->peer->incomingPeerID;
 
                     broadcastPacket(host, packet, true, 0);
 
