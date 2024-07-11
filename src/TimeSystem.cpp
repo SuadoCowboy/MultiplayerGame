@@ -5,18 +5,20 @@
 #include <thread>
 #include <math.h>
 
-TickHandler::TickHandler(const float& tickInterval) : tickInterval(tickInterval) {}
+unsigned short TickHandler::shouldTick() {
+    auto deltaTimeNanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::system_clock::now().time_since_epoch()
+        -timeBegin.time_since_epoch());
+    timeBegin = std::chrono::system_clock::now();
 
-void TickHandler::update(const float& dt) {
-    delta += dt;
-}
+    counter += deltaTimeNanoseconds.count() * 1.0E-6;
 
-bool TickHandler::shouldTick() {
-    if (delta >= tickInterval) {
-        delta -= tickInterval;
-        return true;
+    if (counter >= tickInterval) {
+        unsigned int toTick = counter / tickInterval;
+        counter -= toTick * tickInterval;
+        return toTick;
     }
-    return false;
+    return 0;
 }
 
 // https://blat-blatnik.github.io/computerBear/making-accurate-sleep-function

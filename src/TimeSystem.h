@@ -1,14 +1,27 @@
 #pragma once
 
-struct TickHandler {
-    TickHandler() {};
-    TickHandler(const float& tickInterval);
+#include <chrono>
 
-    void update(const float& dt);
-    bool shouldTick();
+// @brief Server-side tick handler using std::chrono
+class TickHandler {
+public:
+    TickHandler() {}
+    TickHandler(const double& tickInterval) : tickInterval(tickInterval) {}
+
+    /// @brief sets timeBegin to the current time
+    /// @warning should be called before shouldTick
+    void start() {
+        timeBegin = std::chrono::system_clock::now();
+        counter = 0.0;
+    }
     
-    float tickInterval = 1.0f; // example: 1.0f(a second) / 20(t) -> 20 ticks will be drawn in a second evenly
-    float delta = 0.0f; // time passed since last tick
+    /// @return amount of times that should tick
+    unsigned short shouldTick();
+    
+    double tickInterval = 1000; // example: 1s/20(ticks) -> 20 ticks per second = 0.05s = 50ms tickInterval
+private:
+    double counter = 0.0; // ms; dt + dt + ... until tickInterval
+    std::chrono::system_clock::time_point timeBegin;
 };
 
 void preciseSleep(double seconds);
