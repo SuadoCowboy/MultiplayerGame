@@ -1,15 +1,11 @@
 #include "Network.h"
 
-Packet::Packet() {
-	deleteData();
-}
-
 Packet::~Packet() {
 	deleteData();
 }
 
 void Packet::pushData(const void* _data, const size_t& size) {
-	if (data) {
+	if (dataSize != 0) {
 		char* newData = new char[dataSize+size];
 		for (size_t i = 0; i < dataSize; ++i)
 			newData[i] = *(data+i);
@@ -24,7 +20,7 @@ void Packet::pushData(const void* _data, const size_t& size) {
 }
 
 void Packet::deleteData() {
-	if (!data) return;
+	if (dataSize == 0) return;
 	
 	delete[] data;
 	data = nullptr;

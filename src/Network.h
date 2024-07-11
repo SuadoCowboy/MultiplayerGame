@@ -5,7 +5,7 @@
 /// @brief only used to send data. This class allocates memory dynamically in a char* buffer called data
 class Packet {
 public:
-    Packet();
+    Packet() {};
     ~Packet();
     
     /// @warning no size checking is being made. Use knowing the size of data!
