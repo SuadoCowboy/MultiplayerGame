@@ -17,12 +17,12 @@ public:
     ~ClientsHandler();
 
     void add(ENetPeer* peer, const Player& player);
-    void erase(const enet_uint16 id);
+    void erase(const enet_uint8 id);
 
     enet_uint8 size() const;
     
     std::vector<Client*>& get();
-    Client* getById(const enet_uint16& id);
+    Client* getById(const enet_uint8& id);
 
 private:
     std::vector<Client*> clients;

@@ -17,7 +17,7 @@ void ClientsHandler::add(ENetPeer* peer, const Player& player) {
     clients.push_back(pClient);
 }
 
-void ClientsHandler::erase(const enet_uint16 id) {
+void ClientsHandler::erase(const enet_uint8 id) {
     enet_uint8 clientsSize = size();
     for (enet_uint8 i = 0; i < clientsSize; ++i) {
         if (clients[i]->peer->incomingPeerID == id) {
@@ -35,7 +35,7 @@ std::vector<Client*>& ClientsHandler::get() {
     return clients;
 }
 
-Client* ClientsHandler::getById(const enet_uint16& id) {
+Client* ClientsHandler::getById(const enet_uint8& id) {
     for (auto& client : clients)
         if (client->peer->incomingPeerID == id)
             return client;
