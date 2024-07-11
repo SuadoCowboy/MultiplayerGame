@@ -18,10 +18,9 @@ namespace rl {
 
 #define PORT 5055
 
-#define FAKE_LAG 0.0200f // 200ms of (fake) lag
-
 ENetPeer* serverPeer = nullptr;
-enet_uint8 serverTickRate = 0;
+double tickRate = 0.0;
+
 bool receivePacket(ENetHost* host, ENetEvent& event, PacketUnwrapper& output) {
     int result = enet_host_service(host, &event, 0);
     if (event.type != ENET_EVENT_TYPE_RECEIVE || result <= 0)
@@ -40,14 +39,16 @@ bool receivePacket(ENetHost* host, ENetEvent& event, PacketUnwrapper& output) {
 }
 
 struct Client {
-    enet_uint16 id;
+    enet_uint8 id;
     Player player;
 };
 
 Client* pClient = nullptr;
 std::vector<Client*> clients;
 
-void eraseClient(const enet_uint16 id) {
+rl::Vector2 serverPosition = {0.0f, 0.0f}; // Our player position in the server
+
+void eraseClient(const enet_uint8 id) {
     enet_uint8 clientsSize = clients.size();
     for (enet_uint8 i = 0; i < clientsSize; ++i)
         if (clients[i]->id == id) {
@@ -70,7 +71,7 @@ enet_uint8 addClient(const enet_uint8& id, Player& player) {
 }
 
 /// @warning clientsMutex is not locked since it doesn't know for how long it needs to be locked
-Client* getClientById(const enet_uint16& id) {
+Client* getClientById(const enet_uint8& id) {
     for (auto& client : clients)
         if (client->id == id) return client;
     
@@ -106,7 +107,7 @@ void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
 }
 
 enet_uint8 handleClientConnect(PacketUnwrapper& packetUnwrapper) {
-    enet_uint16 id;
+    enet_uint8 id;
     packetUnwrapper >> id;
 
     Player player;
@@ -139,15 +140,16 @@ void getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
         packetUnwrapper >> packetType;
 
         if (packetType == CLIENT_CONNECT) {
-            enet_uint16 id = handleClientConnect(packetUnwrapper);
-            if (!pClient)
+            enet_uint8 id = handleClientConnect(packetUnwrapper);
+            if (!pClient) {
                 pClient = getClientById(id);
+                serverPosition = {pClient->player.rect.x, pClient->player.rect.y};
+            }
         }
             
         else if (packetType == SERVER_DATA) {
-            packetUnwrapper >> serverTickRate;
-
-            std::cout << "SERVER TICK RATE => " << serverTickRate << "\n";
+            packetUnwrapper >> tickRate;
+            std::cout << "SERVER TICK RATE => " << tickRate << "\n";
 
             while (event.packet->dataLength > packetUnwrapper.offset) {
                 handleClientConnect(packetUnwrapper);
@@ -165,7 +167,7 @@ void getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
 }
 
 int main() {
-    rl::InitWindow(200, 200, "Multiplayer Game");
+    rl::InitWindow(1590, 200, "Multiplayer Game");
 
     if (enet_initialize() != 0) {
         std::cerr << "An error occurred while initializing ENet." << std::endl;
@@ -202,10 +204,6 @@ int main() {
     
     getInitialData(client, event, serverPeer);
 
-    //#ifdef FAKE_LAG // mmmmmmmmmmmmmmmm
-    // TODO: do.
-    //#endif
-
     while (!rl::WindowShouldClose()) {
         float dt = rl::GetFrameTime();
 
@@ -213,10 +211,17 @@ int main() {
         rl::ClearBackground(rl::BLACK);
 
         for (auto& client : clients) {
-            if (client->id == pClient->id)
-                client->player.update(serverPeer, dt, serverTickRate);
-            else
-                client->player.update(nullptr, dt, serverTickRate);
+            if (client->id == pClient->id) {
+                client->player.update(serverPeer, dt, tickRate);
+
+                if (client->player.dir == 0) {
+                    client->player.rect.x = serverPosition.x;
+                    client->player.rect.y = serverPosition.y;
+                }
+
+                rl::DrawRectangle(serverPosition.x, serverPosition.y, client->player.rect.width, client->player.rect.height, rl::RED);
+            } else
+                client->player.update(nullptr, dt, tickRate);
 
             rl::DrawRectangle(client->player.rect.x, client->player.rect.y, client->player.rect.width, client->player.rect.height, client->player.color);
             rl::DrawText(
@@ -227,7 +232,7 @@ int main() {
                 rl::WHITE
             );
         }
-        
+
         rl::DrawFPS(0.0f,0.0f);
 
         rl::EndDrawing();
@@ -239,7 +244,7 @@ int main() {
 
             switch (type) {
             case CLIENT_DISCONNECT: {
-                enet_uint16 id = 0;
+                enet_uint8 id;
                 packetUnwrapper >> id;
 
                 eraseClient(id);
@@ -253,7 +258,7 @@ int main() {
                 break;
             
             case PLAYER_INPUT: {
-                enet_uint16 id;
+                enet_uint8 id;
                 packetUnwrapper >> id;
                 
                 Client* pSomeClient = getClientById(id);
@@ -263,15 +268,14 @@ int main() {
                     break;
                 }
 
-                {
-                    enet_uint8 dir;
-                    packetUnwrapper >> dir;
-                    if (id != pClient->id)
-                        pSomeClient->player.dir = dir;
+                if (id == pClient->id) {
+                    packetUnwrapper.offset += sizeof(enet_uint8);
+                    packetUnwrapper >> serverPosition;
+                } else {
+                    packetUnwrapper >> pSomeClient->player.dir
+                                    >> pSomeClient->player.rect.x
+                                    >> pSomeClient->player.rect.y;
                 }
-
-                packetUnwrapper >> pSomeClient->player.rect.x
-                                >> pSomeClient->player.rect.y;
                 
                 break;
             }
