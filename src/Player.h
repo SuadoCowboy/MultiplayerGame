@@ -1,13 +1,12 @@
 #pragma once
 
-#include <string>
-
 namespace rl {
     #include <raylib.h>
 }
 
 #include "Shared.h"
 #ifdef CLIENT
+#include <string>
 #include "Network.h"
 #endif
 
@@ -37,8 +36,6 @@ struct Player {
 
         idTextWidthHalf = rl::MeasureText(idText.c_str(), idTextFontSize)*0.5f;
     }
-#else
-    enet_uint8 oldDir = 0;
 #endif
 
     void update(
@@ -46,6 +43,8 @@ struct Player {
         ENetPeer* serverPeer,
         const float& dt,
         const float& tickRate
+#else
+        const enet_uint16& timesToTick
 #endif
         ) {
 #ifdef CLIENT
@@ -67,8 +66,9 @@ struct Player {
 
                 Packet packet;
                 packet << (enet_uint8)PLAYER_INPUT
-                       << dir;
-                
+                       << dir
+                       << rl::GetTime();
+
                 sendPacket(serverPeer, packet, false, 1);
                 packet.deleteData();
             }
@@ -77,12 +77,16 @@ struct Player {
         rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25)
 #ifdef CLIENT
         * dt * tickRate
+#else
+        * timesToTick
 #endif
         ;
 
         rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1))
 #ifdef CLIENT
         * dt * tickRate
+#else
+        * timesToTick
 #endif
         ;
     }
