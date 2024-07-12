@@ -15,6 +15,7 @@ namespace rl {
 #include "Player.h"
 #include "Network.h"
 #include "Shared.h"
+#include "Prediction.h"
 
 #define PORT 5055
 
@@ -218,6 +219,8 @@ int main() {
                     client->player.rect.x = serverPosition.x;
                     client->player.rect.y = serverPosition.y;
                 }
+                if (predictedData[nextPredictionId-1].dir != client->player.dir)
+                    recordPrediction(client->player.dir, client->player.rect.x, client->player.rect.y);
 
                 rl::DrawRectangle(serverPosition.x, serverPosition.y, client->player.rect.width, client->player.rect.height, rl::RED);
             } else
