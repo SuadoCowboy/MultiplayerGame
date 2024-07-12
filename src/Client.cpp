@@ -15,7 +15,6 @@ namespace rl {
 #include "Player.h"
 #include "Network.h"
 #include "Shared.h"
-#include "Prediction.h"
 
 #define PORT 5055
 
@@ -77,6 +76,23 @@ Client* getClientById(const enet_uint8& id) {
         if (client->id == id) return client;
     
     return nullptr;
+}
+
+struct PredictionData {
+    enet_uint8 dir;
+    rl::Vector2 position;
+};
+
+constexpr enet_uint16 predictedDirBufferSize = 512;
+constexpr enet_uint16 predictedDirBufferMask = predictedDirBufferSize - 1;
+PredictionData predictedData[predictedDirBufferSize];
+enet_uint16 nextPredictionId;
+
+void recordPrediction(enet_uint8 dir, float x, float y) {
+    predictedData[nextPredictionId].dir = dir;
+    predictedData[nextPredictionId].position = {x, y};
+
+    nextPredictionId = (nextPredictionId + 1) & predictedDirBufferMask;
 }
 
 void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
