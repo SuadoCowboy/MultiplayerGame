@@ -12,3 +12,7 @@ rl::Vector2 lerpVec2(const rl::Vector2& start, const rl::Vector2& end, const flo
 double distance2D(const double& x1, const double& y1, const double& x2, const double& y2) {
     return std::sqrt(std::pow((x2 - x1), 2) + std::pow((y2 - y1), 2));
 }
+
+float squaredVec2(const rl::Vector2& vector) {
+    return vector.x * vector.x + vector.y * vector.y;
+}
