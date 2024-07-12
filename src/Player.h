@@ -36,6 +36,8 @@ struct Player {
 
         idTextWidthHalf = rl::MeasureText(idText.c_str(), idTextFontSize)*0.5f;
     }
+#else
+    bool movementStopped = true;
 #endif
 
     void update(

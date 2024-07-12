@@ -26,8 +26,14 @@ void update() {
     for (auto& client : clients.get()) {
         client->player.update(timesToTick);
 
-        if (client->player.dir == 0)
-            continue;
+        if (client->player.dir == 0) {
+            if (client->player.movementStopped)
+                continue;
+            else
+                client->player.movementStopped = true;
+        } else
+            client->player.movementStopped = false;
+            
 
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT
@@ -68,10 +74,6 @@ int main() {
         enet_address_get_host_ip(&host->address, ip, sizeof(ip));
         std::cout << "Address: " << ip << ":" << host->address.port << "\n";
     }
-
-    // TODO: BIG ISSUE: CPU is from 20%-30% usage WITHOUT CLIENTS CONNECTED and when a client connects
-    // it gets lower, probably because of all the mutexes(which is another problem because client update
-    // should not be delayed or else it will get the wrong position)
 
     // 1 (second) / 66.66... (tickRate) = 0.015s = 15ms
     tickHandler.tickInterval = 16;
