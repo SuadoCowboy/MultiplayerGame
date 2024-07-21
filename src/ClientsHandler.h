@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <chrono>
 
 #include <enet/enet.h>
 
@@ -10,6 +11,7 @@ struct Client {
     ENetPeer* peer;
     Player player;
     enet_uint16 lastPredictionId;
+    std::chrono::system_clock::time_point timeSinceLastInput;
 };
 
 class ClientsHandler {
