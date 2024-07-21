@@ -4,7 +4,7 @@ namespace rl {
     #include <raylib.h>
 }
 
-#define PLAYER_VELOCITY 8.0f
+#define PLAYER_VELOCITY 250.0f
 
 #include "Shared.h"
 #ifdef CLIENT
@@ -45,21 +45,8 @@ struct Player {
     enet_uint8 oldDir = 0;
 #endif
 
-    void update(
-#ifdef CLIENT
-            const float& dt
-#endif
-    ) {
-        rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25)
-#ifdef CLIENT
-        * dt
-#endif
-        ;
-
-        rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1))
-#ifdef CLIENT
-        * dt
-#endif
-        ;
+    void update(const float& dt) {
+        rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25) * dt;
+        rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1)) * dt;
     }
 };

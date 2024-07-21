@@ -37,13 +37,7 @@ void update() {
     // }
 
     for (auto& client : clients.get()) {
-        client->player.update();
-
-        /*if (client->player.dir == client->player.oldDir)
-            continue;
-        
-        client->player.oldDir = client->player.dir;
-        */
+        client->player.update(tickHandler.tickInterval.count()/1000.0);
        
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT

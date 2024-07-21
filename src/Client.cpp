@@ -317,7 +317,7 @@ int main() {
                     packetUnwrapper >> serverPosition
                                     >> predictionId;
 
-                    if (squaredVec2(predictedData[predictionId].position - serverPosition) > maxPredictionErrorSquared) {
+                    /*if (squaredVec2(predictedData[predictionId].position - serverPosition) > maxPredictionErrorSquared) {
                         pClient->player.rect.x = serverPosition.x;
                         pClient->player.rect.y = serverPosition.y;
                         pClient->player.dir = predictedData[predictionId].dir;
@@ -330,7 +330,7 @@ int main() {
                            pClient->player.dir = predictedData[predictionId].dir;
                            pClient->player.update(predictedData[predictionId].dt);
                         }
-                    }
+                    }*/
 
                 } else
                     packetUnwrapper >> pSomeClient->player.dir
