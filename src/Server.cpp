@@ -21,25 +21,11 @@ ENetHost* host = nullptr;
 
 TickHandler tickHandler;
 
-// unsigned char ticks = 0;
-// std::chrono::system_clock::time_point secondCounter;
-
 void update() {
-    double dt = 0.0;
-    if (!tickHandler.shouldTick(dt))
+    if (!tickHandler.shouldTick())
         return;
 
-    // ++ticks;
-    // auto now = std::chrono::system_clock::now();
-    // if (now - secondCounter >= std::chrono::milliseconds(1000)) {
-    //     std::cout << "DEBUG => TPS: " << (unsigned short)ticks << "\n";
-    //     ticks = 0;
-    //     secondCounter = now;
-    // }
-
-    for (auto& client : clients.get()) {
-        client->player.update(dt);
-       
+    for (auto& client : clients.get()) {       
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT
                << (enet_uint8)client->peer->incomingPeerID
@@ -51,7 +37,11 @@ void update() {
         broadcastPacket(host, packet, false, 1);
         packet.deleteData();
     }
+
+    return;
 }
+
+constexpr float maxDeltaTime = 0.1f;
 
 int main(int argc, char** argv) {
     if (enet_initialize() != 0) {
@@ -137,7 +127,7 @@ int main(int argc, char** argv) {
 
     while (true) {
         ENetEvent event;
-        
+
         while (enet_host_service(host, &event, 0) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
@@ -210,7 +200,15 @@ int main(int argc, char** argv) {
                             enet_packet_destroy(event.packet);
                             break;
                         }
+
+                        auto now = std::chrono::system_clock::now();
+                        float dt = std::chrono::duration<float>(now-pClient->timeSinceLastInput).count();
+                        dt = std::min(dt, maxDeltaTime);
+
+                        pClient->timeSinceLastInput = now;
+
                         pClient->player.dir = playerDir;
+                        pClient->player.update(dt);
                         packetUnwrapper >> pClient->lastPredictionId;
                     }
 
