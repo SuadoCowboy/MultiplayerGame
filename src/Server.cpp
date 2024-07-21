@@ -83,7 +83,7 @@ int main(int argc, char** argv) {
     {
         // 1 (second) / 66.66... (tickRate) = 0.015s = 15ms
         #define DEFAULT_TICK_INTERVAL 15
-        double tickInterval = -1.0;
+        uint16_t tickInterval = 0;
 
         if (argc > 1)
             for (int i = 1; i < argc; ++i) {
@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
                         double tickRate = std::stod(argv[i]);
                     
                         if (tickRate > 0.0)
-                            tickInterval = 1/tickRate;
+                            tickInterval = 1/tickRate * 1000.0;
                     } catch (...) {
                         std::cout << "Error: a double was expected for tick rate parameter.\n";
                         continue;
@@ -113,7 +113,7 @@ int main(int argc, char** argv) {
                     ++i;
 
                     try {
-                        double _tickInterval = std::stod(argv[i]);
+                        unsigned short _tickInterval = std::stod(argv[i]) * 1000.0;
                     
                         if (_tickInterval > 0.0)
                             tickInterval = _tickInterval;
@@ -125,8 +125,10 @@ int main(int argc, char** argv) {
                     std::cout << "Unknown parameter: " << argv[i] << "\n";
             }
 
-        if (tickInterval > 0.0)
+        if (tickInterval <= 0.0)
             tickHandler.tickInterval = std::chrono::milliseconds(DEFAULT_TICK_INTERVAL);
+        else
+            tickHandler.tickInterval = std::chrono::milliseconds(tickInterval);
     }
 
     std::cout << "DEBUG => TICK INTERVAL: " << tickHandler.tickInterval.count() << "\n";
