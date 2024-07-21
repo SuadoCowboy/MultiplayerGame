@@ -1,4 +1,6 @@
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 #include <enet/enet.h>
 
@@ -249,6 +251,7 @@ int main(int argc, char** argv) {
         }
 
         update();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     enet_host_destroy(host);
