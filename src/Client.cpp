@@ -16,7 +16,6 @@ namespace rl {
 #include "Network.h"
 #include "Shared.h"
 #include "MMath.h"
-#include "TimeSystem.h"
 
 #define PORT 5055
 
@@ -102,8 +101,6 @@ void recordPrediction(enet_uint8 dir, float x, float y, float dt) {
     predictedData[currentPredictionId].dt = dt;
 }
 
-DeltaTimedTickHandler tickHandler;
-
 void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
     enet_peer_disconnect(peer, 0);
 
@@ -174,9 +171,6 @@ void getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
         }
             
         else if (packetType == SERVER_DATA) {
-            packetUnwrapper >> tickHandler.tickInterval;
-            std::cout << "TICK INTERVAL => " << tickHandler.tickInterval << "\n";
-
             while (event.packet->dataLength > packetUnwrapper.offset) {
                 handleClientConnect(packetUnwrapper);
                 ++clientsListSize;
