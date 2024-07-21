@@ -15,7 +15,7 @@ public:
         lastTick = std::chrono::system_clock::now();
     }
     
-    bool shouldTick(double& dt);
+    bool shouldTick();
     
     // example: 1s/20(ticks) -> 20 ticks per second = 0.05s = 50ms tickInterval
     uint16_t tickInterval = 16;

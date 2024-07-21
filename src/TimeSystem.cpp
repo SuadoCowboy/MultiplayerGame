@@ -5,10 +5,9 @@
 #include <thread>
 #include <math.h>
 
-bool TickHandler::shouldTick(double& dt) {
+bool TickHandler::shouldTick() {
     auto now = std::chrono::system_clock::now();
     auto deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTick);
-    dt = deltaTime.count()/1000.0;
 
     if (deltaTime >= std::chrono::milliseconds(tickInterval)) {
         lastTick = now;
