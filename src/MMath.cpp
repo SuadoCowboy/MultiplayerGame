@@ -20,3 +20,15 @@ float squaredVec2(const rl::Vector2& vector) {
 rl::Vector2 operator-(const rl::Vector2& a, const rl::Vector2& b) {
     return {a.x - b.x, a.y - b.y};
 }
+
+// float cutDecimals(float number, const unsigned char& decimals) {
+// 	for (unsigned char i = 0; i < decimals; ++i)
+// 		number *= 10;
+	
+// 	number = int(number);
+	
+// 	for (unsigned char i = 0; i < decimals; ++i)
+// 		number /= 10;
+	
+// 	return number;
+// }
