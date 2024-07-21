@@ -4,7 +4,7 @@ namespace rl {
     #include <raylib.h>
 }
 
-#define PLAYER_VELOCITY 250.0f
+#define PLAYER_VELOCITY 500.0f
 
 #include "Shared.h"
 #ifdef CLIENT
