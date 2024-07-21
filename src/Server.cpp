@@ -1,6 +1,5 @@
 #include <iostream>
 #include <chrono>
-#include <thread>
 
 #include <enet/enet.h>
 
@@ -130,7 +129,7 @@ int main(int argc, char** argv) {
     while (true) {
         ENetEvent event;
 
-        while (enet_host_service(host, &event, 0) > 0) {
+        while (enet_host_service(host, &event, 1) > 0) {
             switch (event.type) {
                 case ENET_EVENT_TYPE_CONNECT: {
                     char ip[16];
@@ -251,7 +250,6 @@ int main(int argc, char** argv) {
         }
 
         update();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     enet_host_destroy(host);
