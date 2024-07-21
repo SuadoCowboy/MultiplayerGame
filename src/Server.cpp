@@ -25,7 +25,8 @@ TickHandler tickHandler;
 // std::chrono::system_clock::time_point secondCounter;
 
 void update() {
-    if (!tickHandler.shouldTick())
+    double dt = 0.0;
+    if (!tickHandler.shouldTick(dt))
         return;
 
     // ++ticks;
@@ -37,7 +38,7 @@ void update() {
     // }
 
     for (auto& client : clients.get()) {
-        client->player.update(tickHandler.tickInterval.count()/1000.0);
+        client->player.update(dt);
        
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT
@@ -98,7 +99,7 @@ int main(int argc, char** argv) {
                         double tickRate = std::stod(argv[i]);
                     
                         if (tickRate > 0.0)
-                            tickInterval = 1/tickRate * 1000.0;
+                            tickInterval = 1/tickRate * 1000;
                     } catch (...) {
                         std::cout << "Error: a double was expected for tick rate parameter.\n";
                         continue;
@@ -113,7 +114,7 @@ int main(int argc, char** argv) {
                     ++i;
 
                     try {
-                        unsigned short _tickInterval = std::stod(argv[i]) * 1000.0;
+                        uint16_t _tickInterval = std::stod(argv[i]) * 1000;
                     
                         if (_tickInterval > 0.0)
                             tickInterval = _tickInterval;
@@ -125,13 +126,13 @@ int main(int argc, char** argv) {
                     std::cout << "Unknown parameter: " << argv[i] << "\n";
             }
 
-        if (tickInterval <= 0.0)
-            tickHandler.tickInterval = std::chrono::milliseconds(DEFAULT_TICK_INTERVAL);
+        if (tickInterval <= 0)
+            tickHandler.tickInterval = DEFAULT_TICK_INTERVAL;
         else
-            tickHandler.tickInterval = std::chrono::milliseconds(tickInterval);
+            tickHandler.tickInterval = tickInterval;
     }
 
-    std::cout << "DEBUG => TICK INTERVAL: " << tickHandler.tickInterval.count() << "\n";
+    std::cout << "DEBUG => TICK INTERVAL: " << tickHandler.tickInterval << "\n";
     tickHandler.start();
 
     while (true) {
@@ -147,7 +148,11 @@ int main(int argc, char** argv) {
                     {
                         Player clientPlayer;
                         clientPlayer.rect = {100, 100, 20,20};
-                        clientPlayer.color = {100, 31, 75, 255};
+                        
+                        clientPlayer.color.r = rand() % 256;
+                        clientPlayer.color.g = rand() % 256;
+                        clientPlayer.color.b = rand() % 256;
+                        clientPlayer.color.a = 255;
                         
                         clients.add(event.peer, clientPlayer);
                         pClient = clients.getById(event.peer->incomingPeerID);
@@ -166,8 +171,7 @@ int main(int argc, char** argv) {
                     broadcastPacket(host, packet, true, 0);
                     packet.deleteData();
                     
-                    packet << (enet_uint8)SERVER_DATA
-                           << (float)tickHandler.tickInterval.count();
+                    packet << (enet_uint8)SERVER_DATA;
                     
                     for (auto& client : clients.get()) {
                         if (client->peer == pClient->peer)
