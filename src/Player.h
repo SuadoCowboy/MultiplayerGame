@@ -4,7 +4,7 @@ namespace rl {
     #include <raylib.h>
 }
 
-#define PLAYER_VELOCITY 1000.0f
+#define PLAYER_VELOCITY 200.0f
 
 #include "Shared.h"
 #ifdef CLIENT
@@ -14,8 +14,6 @@ namespace rl {
 
 #include "Network.h"
 #endif
-
-
 
 struct Player {
     rl::Rectangle rect = {0.0f,0.0f,0.0f,0.0f};
