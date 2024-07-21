@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <math.h>
+#include <chrono>
 
 #include <enet/enet.h>
 
@@ -224,34 +226,42 @@ int main() {
     
     getInitialData(client, event, serverPeer);
 
+    std::chrono::system_clock::time_point counterBegin;
+    bool passed = false, started = false;
+    float endX = 1000;
+    std::string passedText = "";
+
     while (!rl::WindowShouldClose()) {
         float dt = rl::GetFrameTime();
 
         rl::BeginDrawing();
         rl::ClearBackground(rl::BLACK);
         
-        enet_uint8 newDir = 0;
+        pClient->player.dir = 0;
+
         if (rl::IsKeyDown(rl::KEY_W))
-            newDir |= 1;
+            pClient->player.dir |= 1;
         if (rl::IsKeyDown(rl::KEY_S))
-            newDir |= 2;
+            pClient->player.dir |= 2;
         
         if (rl::IsKeyDown(rl::KEY_A))
-            newDir |= 4;
-        if (rl::IsKeyDown(rl::KEY_D))
-            newDir |= 8;
-
-        if (newDir != pClient->player.dir) {
-            pClient->player.dir = newDir;
-
-            Packet packet;
-            packet << (enet_uint8)PLAYER_INPUT
-                << pClient->player.dir
-                << currentPredictionId;
-
-            sendPacket(serverPeer, packet, false, 1);
-            packet.deleteData();
+            pClient->player.dir |= 4;
+        if (rl::IsKeyDown(rl::KEY_D)) {
+            pClient->player.dir |= 8;
+            
+            if (!started) {
+                counterBegin = std::chrono::system_clock::now();
+                started = true;
+            }
         }
+
+        Packet packet;
+        packet << (enet_uint8)PLAYER_INPUT
+            << pClient->player.dir
+            << currentPredictionId;
+
+        sendPacket(serverPeer, packet, false, 1);
+        packet.deleteData();
 
         for (auto& client : clients) {
             client->player.update(dt);
@@ -270,7 +280,16 @@ int main() {
             );
         }
 
+        if (!passed && pClient->player.rect.x+pClient->player.rect.width >= endX) {
+            const char* fmt = rl::TextFormat("%f", std::chrono::duration<float>(std::chrono::system_clock::now()-counterBegin).count());
+            passedText = fmt;
+            passed = true;
+        }
+
         rl::DrawFPS(0.0f,0.0f);
+
+        rl::DrawText(passedText.c_str(), 300, 300, 50, rl::PURPLE);
+
         rl::EndDrawing();
 
         PacketUnwrapper packetUnwrapper;
@@ -311,20 +330,17 @@ int main() {
                     packetUnwrapper >> serverPosition
                                     >> predictionId;
 
-                    /*if (squaredVec2(predictedData[predictionId].position - serverPosition) > maxPredictionErrorSquared) {
+                    if (sqrt(squaredVec2(predictedData[predictionId].position - serverPosition)) > maxPredictionErrorSquared) {
                         pClient->player.rect.x = serverPosition.x;
                         pClient->player.rect.y = serverPosition.y;
-                        pClient->player.dir = predictedData[predictionId].dir;
-
-                        ++predictionId;
                         
                         //replay with the updated position
-                        for (; predictionId < currentPredictionId;
+                        for (; predictionId != currentPredictionId;
                             predictionId = (predictionId + 1) & predictedDataBufferMask) {
                            pClient->player.dir = predictedData[predictionId].dir;
                            pClient->player.update(predictedData[predictionId].dt);
                         }
-                    }*/
+                    }
 
                 } else
                     packetUnwrapper >> pSomeClient->player.dir
