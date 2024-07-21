@@ -9,6 +9,7 @@
 struct Client {
     ENetPeer* peer;
     Player player;
+    enet_uint16 lastPredictionId;
 };
 
 class ClientsHandler {

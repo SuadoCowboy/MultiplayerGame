@@ -16,3 +16,7 @@ double distance2D(const double& x1, const double& y1, const double& x2, const do
 float squaredVec2(const rl::Vector2& vector) {
     return vector.x * vector.x + vector.y * vector.y;
 }
+
+rl::Vector2 operator-(const rl::Vector2& a, const rl::Vector2& b) {
+    return {a.x - b.x, a.y - b.y};
+}

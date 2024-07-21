@@ -4,13 +4,18 @@ namespace rl {
     #include <raylib.h>
 }
 
+#define PLAYER_VELOCITY 8.0f
+
 #include "Shared.h"
 #ifdef CLIENT
 #include <string>
+
+#include <enet/enet.h>
+
 #include "Network.h"
 #endif
 
-#define PLAYER_VELOCITY 8.0f
+
 
 struct Player {
     rl::Rectangle rect = {0.0f,0.0f,0.0f,0.0f};
@@ -37,58 +42,23 @@ struct Player {
         idTextWidthHalf = rl::MeasureText(idText.c_str(), idTextFontSize)*0.5f;
     }
 #else
-    bool movementStopped = true;
+    enet_uint8 oldDir = 0;
 #endif
 
     void update(
 #ifdef CLIENT
-        ENetPeer* serverPeer,
-        const float& dt,
-        const float& tickRate
-#else
-        const enet_uint16& timesToTick
+            const float& dt
 #endif
-        ) {
-#ifdef CLIENT
-        if (serverPeer != nullptr) {
-            enet_uint8 newDir = 0;
-
-            if (rl::IsKeyDown(rl::KEY_W))
-                newDir |= 1;
-            if (rl::IsKeyDown(rl::KEY_S))
-                newDir |= 2;
-            
-            if (rl::IsKeyDown(rl::KEY_A))
-                newDir |= 4;
-            if (rl::IsKeyDown(rl::KEY_D))
-               newDir |= 8;
-            
-            if (newDir != dir) {
-                dir = newDir;
-
-                Packet packet;
-                packet << (enet_uint8)PLAYER_INPUT
-                       << dir
-                       << rl::GetTime();
-
-                sendPacket(serverPeer, packet, false, 1);
-                packet.deleteData();
-            }
-        }
-#endif
+    ) {
         rect.x += PLAYER_VELOCITY * ((dir & 8) * 0.125 - (dir & 4) * 0.25)
 #ifdef CLIENT
-        * dt * tickRate
-#else
-        * timesToTick
+        * dt
 #endif
         ;
 
         rect.y += PLAYER_VELOCITY * ((dir & 2) * 0.5 - (dir & 1))
 #ifdef CLIENT
-        * dt * tickRate
-#else
-        * timesToTick
+        * dt
 #endif
         ;
     }

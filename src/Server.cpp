@@ -21,33 +21,44 @@ ENetHost* host = nullptr;
 
 TickHandler tickHandler;
 
+// unsigned char ticks = 0;
+// std::chrono::system_clock::time_point secondCounter;
+
 void update() {
-    enet_uint16 timesToTick = tickHandler.shouldTick();
+    if (!tickHandler.shouldTick())
+        return;
+
+    // ++ticks;
+    // auto now = std::chrono::system_clock::now();
+    // if (now - secondCounter >= std::chrono::milliseconds(1000)) {
+    //     std::cout << "DEBUG => TPS: " << (unsigned short)ticks << "\n";
+    //     ticks = 0;
+    //     secondCounter = now;
+    // }
+
     for (auto& client : clients.get()) {
-        client->player.update(timesToTick);
+        client->player.update();
 
-        if (client->player.dir == 0) {
-            if (client->player.movementStopped)
-                continue;
-            else
-                client->player.movementStopped = true;
-        } else
-            client->player.movementStopped = false;
-            
-
+        /*if (client->player.dir == client->player.oldDir)
+            continue;
+        
+        client->player.oldDir = client->player.dir;
+        */
+       
         Packet packet;
         packet << (enet_uint8)PLAYER_INPUT
-                << (enet_uint8)client->peer->incomingPeerID
-                << client->player.dir
-                << client->player.rect.x
-                << client->player.rect.y;
+               << (enet_uint8)client->peer->incomingPeerID
+               << client->player.dir
+               << client->player.rect.x
+               << client->player.rect.y
+               << client->lastPredictionId;
 
         broadcastPacket(host, packet, false, 1);
         packet.deleteData();
     }
 }
 
-int main() {
+int main(int argc, char** argv) {
     if (enet_initialize() != 0) {
         std::cerr << "An error occurred while initializing ENet." << std::endl;
         exit(EXIT_FAILURE);
@@ -75,8 +86,56 @@ int main() {
         std::cout << "Address: " << ip << ":" << host->address.port << "\n";
     }
 
-    // 1 (second) / 66.66... (tickRate) = 0.015s = 15ms
-    tickHandler.tickInterval = 16;
+    {
+        // 1 (second) / 66.66... (tickRate) = 0.015s = 15ms
+        #define DEFAULT_TICK_INTERVAL 15
+        double tickInterval = -1.0;
+
+        if (argc > 1)
+            for (int i = 1; i < argc; ++i) {
+                if ((strcmp(argv[i], "-tickrate") == 0 || strcmp(argv[i], "-tr") == 0)) {
+                    if (i+1 >= argc) {
+                        std::cout << "Missing double value for tick rate.\n";
+                        continue;
+                    }
+                    
+                    ++i;
+                    try {
+                        double tickRate = std::stod(argv[i]);
+                    
+                        if (tickRate > 0.0)
+                            tickInterval = 1/tickRate;
+                    } catch (...) {
+                        std::cout << "Error: a double was expected for tick rate parameter.\n";
+                        continue;
+                    }
+                
+                } else if ((strcmp(argv[i], "-tickinterval") == 0 || strcmp(argv[i], "-ti") == 0)) {
+                    if (i+1 >= argc) {
+                        std::cout << "Missing double value for tick interval.\n";
+                        continue;
+                    }
+
+                    ++i;
+
+                    try {
+                        double _tickInterval = std::stod(argv[i]);
+                    
+                        if (_tickInterval > 0.0)
+                            tickInterval = _tickInterval;
+                    } catch (...) {
+                        std::cout << "Error: a double was expected for tick interval parameter.\n";
+                        continue;
+                    }
+                } else
+                    std::cout << "Unknown parameter: " << argv[i] << "\n";
+            }
+
+        if (tickInterval > 0.0)
+            tickHandler.tickInterval = std::chrono::milliseconds(DEFAULT_TICK_INTERVAL);
+    }
+
+    std::cout << "DEBUG => TICK INTERVAL: " << tickHandler.tickInterval.count() << "\n";
     tickHandler.start();
 
     while (true) {
@@ -112,7 +171,7 @@ int main() {
                     packet.deleteData();
                     
                     packet << (enet_uint8)SERVER_DATA
-                           << 1000/tickHandler.tickInterval;
+                           << (float)tickHandler.tickInterval.count();
                     
                     for (auto& client : clients.get()) {
                         if (client->peer == pClient->peer)
@@ -145,15 +204,14 @@ int main() {
 
                         enet_uint8 playerDir;
                         packetUnwrapper >> playerDir;
-                                        //>> pClient->timestamp;
 
                         // 15 = 1 | 2 | 4 | 8 = all keys pressed. Above that it's unknown data.
                         if (playerDir > 15) {
                             enet_packet_destroy(event.packet);
                             break;
                         }
-
                         pClient->player.dir = playerDir;
+                        packetUnwrapper >> pClient->lastPredictionId;
                     }
 
                     enet_packet_destroy(event.packet);

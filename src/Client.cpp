@@ -15,11 +15,12 @@ namespace rl {
 #include "Player.h"
 #include "Network.h"
 #include "Shared.h"
+#include "MMath.h"
+#include "TimeSystem.h"
 
 #define PORT 5055
 
 ENetPeer* serverPeer = nullptr;
-double tickRate = 0.0;
 
 bool receivePacket(ENetHost* host, ENetEvent& event, PacketUnwrapper& output) {
     int result = enet_host_service(host, &event, 0);
@@ -81,19 +82,27 @@ Client* getClientById(const enet_uint8& id) {
 struct PredictionData {
     enet_uint8 dir;
     rl::Vector2 position;
+    float dt;
 };
 
-constexpr enet_uint16 predictedDirBufferSize = 512;
-constexpr enet_uint16 predictedDirBufferMask = predictedDirBufferSize - 1;
-PredictionData predictedData[predictedDirBufferSize];
-enet_uint16 nextPredictionId;
+constexpr float maxPredictionError = 0.01f;
+constexpr float maxPredictionErrorSquared = maxPredictionError * maxPredictionError;
 
-void recordPrediction(enet_uint8 dir, float x, float y) {
-    predictedData[nextPredictionId].dir = dir;
-    predictedData[nextPredictionId].position = {x, y};
+constexpr enet_uint16 predictedDataBufferSize = 512;
+constexpr enet_uint16 predictedDataBufferMask = predictedDataBufferSize - 1;
 
-    nextPredictionId = (nextPredictionId + 1) & predictedDirBufferMask;
+PredictionData predictedData[predictedDataBufferSize];
+enet_uint16 currentPredictionId;
+
+void recordPrediction(enet_uint8 dir, float x, float y, float dt) {
+    currentPredictionId = (currentPredictionId + 1) & predictedDataBufferMask;
+
+    predictedData[currentPredictionId].dir = dir;
+    predictedData[currentPredictionId].position = {x, y};
+    predictedData[currentPredictionId].dt = dt;
 }
+
+DeltaTimedTickHandler tickHandler;
 
 void disconnect(ENetHost* client, ENetEvent& event, ENetPeer* peer) {
     enet_peer_disconnect(peer, 0);
@@ -165,8 +174,8 @@ void getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
         }
             
         else if (packetType == SERVER_DATA) {
-            packetUnwrapper >> tickRate;
-            std::cout << "SERVER TICK RATE => " << tickRate << "\n";
+            packetUnwrapper >> tickHandler.tickInterval;
+            std::cout << "TICK INTERVAL => " << tickHandler.tickInterval << "\n";
 
             while (event.packet->dataLength > packetUnwrapper.offset) {
                 handleClientConnect(packetUnwrapper);
@@ -184,7 +193,7 @@ void getInitialData(ENetHost* client, ENetEvent& event, ENetPeer* serverPeer) {
 }
 
 int main() {
-    rl::InitWindow(1590, 200, "Multiplayer Game");
+    rl::InitWindow(1200, 600, "Multiplayer Game");
 
     if (enet_initialize() != 0) {
         std::cerr << "An error occurred while initializing ENet." << std::endl;
@@ -226,21 +235,36 @@ int main() {
 
         rl::BeginDrawing();
         rl::ClearBackground(rl::BLACK);
+        
+        enet_uint8 newDir = 0;
+        if (rl::IsKeyDown(rl::KEY_W))
+            newDir |= 1;
+        if (rl::IsKeyDown(rl::KEY_S))
+            newDir |= 2;
+        
+        if (rl::IsKeyDown(rl::KEY_A))
+            newDir |= 4;
+        if (rl::IsKeyDown(rl::KEY_D))
+            newDir |= 8;
+
+        if (newDir != pClient->player.dir) {
+            pClient->player.dir = newDir;
+
+            Packet packet;
+            packet << (enet_uint8)PLAYER_INPUT
+                << pClient->player.dir
+                << currentPredictionId;
+
+            sendPacket(serverPeer, packet, false, 1);
+            packet.deleteData();
+        }
 
         for (auto& client : clients) {
+            client->player.update(dt);
             if (client->id == pClient->id) {
-                client->player.update(serverPeer, dt, tickRate);
-
-                if (client->player.dir == 0) {
-                    client->player.rect.x = serverPosition.x;
-                    client->player.rect.y = serverPosition.y;
-                }
-                if (predictedData[nextPredictionId-1].dir != client->player.dir)
-                    recordPrediction(client->player.dir, client->player.rect.x, client->player.rect.y);
-
+                recordPrediction(client->player.dir, client->player.rect.x, client->player.rect.y, dt);
                 rl::DrawRectangle(serverPosition.x, serverPosition.y, client->player.rect.width, client->player.rect.height, rl::RED);
-            } else
-                client->player.update(nullptr, dt, tickRate);
+            }
 
             rl::DrawRectangle(client->player.rect.x, client->player.rect.y, client->player.rect.width, client->player.rect.height, client->player.color);
             rl::DrawText(
@@ -253,7 +277,6 @@ int main() {
         }
 
         rl::DrawFPS(0.0f,0.0f);
-
         rl::EndDrawing();
 
         PacketUnwrapper packetUnwrapper;
@@ -289,12 +312,30 @@ int main() {
 
                 if (id == pClient->id) {
                     packetUnwrapper.offset += sizeof(enet_uint8);
-                    packetUnwrapper >> serverPosition;
-                } else {
+                    
+                    enet_uint16 predictionId;
+                    packetUnwrapper >> serverPosition
+                                    >> predictionId;
+
+                    if (squaredVec2(predictedData[predictionId].position - serverPosition) > maxPredictionErrorSquared) {
+                        pClient->player.rect.x = serverPosition.x;
+                        pClient->player.rect.y = serverPosition.y;
+                        pClient->player.dir = predictedData[predictionId].dir;
+
+                        ++predictionId;
+                        
+                        //replay with the updated position
+                        for (; predictionId < currentPredictionId;
+                            predictionId = (predictionId + 1) & predictedDataBufferMask) {
+                           pClient->player.dir = predictedData[predictionId].dir;
+                           pClient->player.update(predictedData[predictionId].dt);
+                        }
+                    }
+
+                } else
                     packetUnwrapper >> pSomeClient->player.dir
                                     >> pSomeClient->player.rect.x
                                     >> pSomeClient->player.rect.y;
-                }
                 
                 break;
             }

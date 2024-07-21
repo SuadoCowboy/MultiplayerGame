@@ -10,4 +10,6 @@ rl::Vector2 lerpVec2(const rl::Vector2& start, const rl::Vector2& end, const flo
 double distance2D(const double& x1, const double& y1, const double& x2, const double& y2);
 
 /// @return x*x + y*y
-float squaredVec2(const rl::Vector2& vector); 
+float squaredVec2(const rl::Vector2& vector);
+
+rl::Vector2 operator-(const rl::Vector2& a, const rl::Vector2& b);
